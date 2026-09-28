@@ -77,6 +77,17 @@ uv add requests
   Add `--eval` to also run the evaluation example (see below), or `--no_plots` to skip
   the detection plot images.
 
+### From VS Code
+
+  1. Open the repository folder in VS Code (with the Python extension installed).
+  2. `Ctrl+Shift+P` → *Python: Select Interpreter* → choose the project's `.venv`.
+  3. Open *Run and Debug* (`Ctrl+Shift+D`), pick a configuration and press `F5`:
+     - **SSCD: run example** / **SSCD: run example + evaluation**
+     - **SSCD: run on a folder of scales**: asks for the image folder and output folder
+
+  Formatting on save is deliberately disabled in `.vscode/settings.json`, so editing a file
+  doesn't restyle it (this fork keeps upstream's formatting to stay easy to merge).
+
 ### On your own scale images
 
   Run from the repository root:

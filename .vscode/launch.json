@@ -1,0 +1,53 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "SSCD: run example",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/run_example.py",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "SSCD: run example + evaluation",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/run_example.py",
+            "args": ["--eval"],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "SSCD: run on a folder of scales",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/sscd.py",
+            "args": [
+                "--img_dir", "${input:imgDir}",
+                "--output_dir", "${input:outputDir}",
+                "--transect_angles", "0", "45", "90", "135", "180",
+                "--plot_dets", "True"
+            ],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        }
+    ],
+    "inputs": [
+        {
+            "id": "imgDir",
+            "type": "promptString",
+            "description": "Folder with scale images (.tif/.jpg)",
+            "default": "${workspaceFolder}/data/example_scales"
+        },
+        {
+            "id": "outputDir",
+            "type": "promptString",
+            "description": "Output folder (new/empty, or a previous SSCD output - it is emptied first)",
+            "default": "${workspaceFolder}/SSCD_temp_outputs/my_run"
+        }
+    ]
+}

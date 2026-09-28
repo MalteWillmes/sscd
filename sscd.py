@@ -83,7 +83,7 @@ def focus_checks(focus_dets_df):
         
         mult_focus_img_id = multiple_focus.index.values.tolist()
 
-        logger.exception("... Multiple focus detected in the following image(s): " 
+        logger.error("... Multiple focus detected in the following image(s): " 
                         f"\n\n\t{unpack_for_string(mult_focus_img_id)}"
                         "\n\n\tDo images contain multiple scales? "
                         "Currently, system only allows for one scale per image " 
@@ -165,7 +165,7 @@ def circuli_checks(circuli_dets_df, circuli_max_boxes):
     # Warning when maximum number of detections in one image 
     hit_max_num_dets = circuli_dets_df[["img_id", "circulus_nr"]][circuli_dets_df.circulus_nr == circuli_max_boxes]    
     if len(hit_max_num_dets) > 0:
-        logger.warning(f"... Current max number of detections permitted per transect ({circuli_max_boxes} boxes)"
+        logger.warning(f"... Current max number of detections permitted per transect ({circuli_max_boxes} boxes) "
                         "has been reached in the following images"
                         '\n\n\t'+ hit_max_num_dets.to_string().replace('\n', '\n\t') +
                         "\n\n\tCheck circuli detection images for visual inspection. "
@@ -210,7 +210,8 @@ def main():
     
     # parse the command line arguments
     args_parser = argparse.ArgumentParser(
-        description='*** DESCRIPTION TO DO ***',
+        description='Salmon Scale Circuli Detector: locate the focus of each scale image, extract '
+        'radial transects and detect circuli along them, reporting inter-circulus spacings.',
         formatter_class=argparse.MetavarTypeHelpFormatter
         )
     args_parser.add_argument(

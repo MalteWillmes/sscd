@@ -14,7 +14,10 @@ import sys
 import zipfile
 from pathlib import Path
 
-from sscd_libs.helpers import download_url
+from sscd_libs.helpers import REPO_DIR, download_url
+
+# assets live in the repository's data/ folder, wherever this is run from
+DATA_DIR = REPO_DIR / "data"
 
 # ---------------------------------------------------------------------------
 # Asset definitions
@@ -25,8 +28,8 @@ from sscd_libs.helpers import download_url
 WEIGHTS_URL = (
     "https://www.dropbox.com/sh/xm2zmoz7h9g5nqi/AACfwx7_JQmUkcNK8ePXetkta?dl=1"
 )
-WEIGHTS_ZIP = Path("data/yoloV3_checkpoints.zip")
-WEIGHTS_DIR = Path("data/yoloV3_checkpoints")
+WEIGHTS_ZIP = DATA_DIR / "yoloV3_checkpoints.zip"
+WEIGHTS_DIR = DATA_DIR / "yoloV3_checkpoints"
 # Sentinel files that confirm a successful extraction
 WEIGHTS_SENTINELS = [
     WEIGHTS_DIR / "focus_detector" / "yolov3_train_190.tf.index",
@@ -38,13 +41,13 @@ WEIGHTS_SENTINELS = [
 TRAINING_DATA_URL = (
     "https://www.dropbox.com/s/fpj1svas8xgz02d/sscd_training_example_data.zip?dl=1"
 )
-TRAINING_DATA_ZIP = Path("data/training_example_data.zip")
-TRAINING_DATA_DIR = Path("data/training_example_data")
+TRAINING_DATA_ZIP = DATA_DIR / "training_example_data.zip"
+TRAINING_DATA_DIR = DATA_DIR / "training_example_data"
 
 # Pre-trained Darknet-53 weights from the original YOLOv3 authors.
 # Used as the starting point for transfer learning.
 DARKNET_WEIGHTS_URL = "https://pjreddie.com/media/files/yolov3.weights"
-DARKNET_WEIGHTS_DIR = Path("data/transfer_learning")
+DARKNET_WEIGHTS_DIR = DATA_DIR / "transfer_learning"
 DARKNET_WEIGHTS_FILE = DARKNET_WEIGHTS_DIR / "yolov3.weights"
 
 

@@ -22,13 +22,14 @@ eval_detections <- function(sscd_path, img_dir, anns_dir, dets_csv, iou_threshou
     }
   )
   
-  # Build the command to run evaluation module (written in python)
+  # Build the command to run evaluation module (written in python), inside the
+  # project's uv environment
   eval_py_call <- glue::glue(
-    'python {abs_paths_norm$eval_fun_path}',
-    '--img_dir {abs_paths_norm$img_dir}', 
+    'uv run --project {double_quote(normalizePath(sscd_path))} python {abs_paths_norm$eval_fun_path}',
+    '--img_dir {abs_paths_norm$img_dir}',
     '--anns_dir {abs_paths_norm$anns_dir}',
     '--dets_csv {abs_paths_norm$dets_csv}',
-    '--iou_threshould 0.5',
+    '--iou_threshould {iou_threshould}',
     '--output_dir {abs_paths_norm$output_dir}',
     '--plot_dets_vs_anns {ifelse(plot_dets_vs_anns, "True", "False")}',
     '--sep_plots {ifelse(sep_plots, "True", "False")}',
@@ -36,7 +37,7 @@ eval_detections <- function(sscd_path, img_dir, anns_dir, dets_csv, iou_threshou
   )
   
   # Invoke system command
-  system(eval_py_call, invisible = FALSE)
+  system(eval_py_call)
   
 }
 

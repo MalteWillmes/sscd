@@ -28,7 +28,6 @@ import lxml.etree
 from PIL import Image
 import tensorflow as tf
 import tqdm
-import six
 from pathlib import Path
 
 from typing import List #Dict, , NamedTuple, Set
@@ -136,7 +135,7 @@ def bytes_list_feature(
     :return TF-Feature of bytes
     """
     def norm2bytes(value):
-        return value.encode() if isinstance(value, str) and six.PY3 else value
+        return value.encode() if isinstance(value, str) else value
 
     return tf.train.Feature(bytes_list=tf.train.BytesList(value=[norm2bytes(values)]))
 

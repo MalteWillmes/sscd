@@ -7,7 +7,7 @@ authors = [
 # See https://www.python.org/dev/peps/pep-0621/
 dependencies = [
     "pillow>=10.2.0,<11.0.0",
-    "opencv-python>=4.8.1.78,<5.0.0",
+    "opencv-python-headless>=4.8.1.78,<5.0.0",
     "tqdm>=4.66.2,<5.0.0",
     "requests>=2.31.0,<3.0.0",
     "matplotlib>=3.8.0,<4.0.0",
@@ -40,6 +40,9 @@ dev = [
 ]
 
 [tool.deptry]
+# pascalvoc.py is the vendored metrics library's own stand-alone CLI (not used
+# by SSCD); it imports its modules via a sys.path hack deptry cannot follow
+extend_exclude = ["obj_det_metrics/pascalvoc.py"]
 known_first_party = ["sscd_libs"]
 
 [tool.ruff]

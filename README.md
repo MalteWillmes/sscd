@@ -112,67 +112,56 @@ uv add requests
 
 | Argument               | Description                     | Type          | Default         |
 |------------------------|---------------------------------|---------------|-----------------|
-| `--img_dir`    | Directory path containing scale image files. Expects TIF images  | str  |      |
-| `--output_dir` | Directory path where outputs will be stored                      | str  |      |
+| `--img_dir`    | Directory containing the scale images: `.tif`/`.tiff`/`.jpg`/`.jpeg` (any case; 8/16-bit, greyscale or colour) | str  |      |
+| `--output_dir` | Directory where outputs are stored. Emptied at the start of each run, so it must be a new/empty directory or the output of a previous SSCD run; SSCD refuses to use the input directory (or any folder containing it) | str  |      |
 | `--transect_angles` | Choice of angle(s) for radial transects in degrees (0-360)  | int (spaced) | `0 45 90 135 180` |
-| `--plot_dets`    | Option to generate images with detections, for visual inspection   | bool   | `True` |
+| `--plot_dets`    | Option to generate images with detections, for visual inspection   | bool (`True`/`False`)  | `True` |
+| `--dets_separate_files` | Also write the detections of each image to a separate txt file (`detections/*/dets_img_id/`) | bool (`True`/`False`) | `False` |
 | `--transect_max_boxes` | Maximum number of detections per transect image              | int    | `200`  |
 
 
 ### `sscd.py` outputs
 
 The following directory tree represents how the outputs from SSCD are structured:
-<!-- Tree obtained via "tree /F" in command line -->
 
 ```
 <output_dir>
    ├─── detections
-   │   ├─── circuli
-   │   │     │   ├─── circuli_spacings.csv
-   │   │     │   └─── detections.csv
-   │   │     │
-   │   │     └─── detection_images
-   │   │           ├─── N Esk NC_2018_273_0_detections.jpg
-   │   │           ├─── N Esk NC_2018_273_180_detections.jpg
-   │   │           ├─── N Esk NC_2018_273_225_detections.jpg
-   │   │           ├─── N Esk NC_2018_273_270_detections.jpg
-   │   │           ├─── N Esk NC_2018_273_315_detections.jpg
-   │   │           ├─── N Esk NC_2018_273_90_detections.jpg
-   |   |           ...
-   │   │
-   │   └─── focus
-   │         │  └─── detections.csv
-   │         │
-   │         ├─── detection_images
-   │         │      ├─── N Esk NC_2018_273_detections.jpg
-   │         │      ├─── N Esk NC_2018_354_detections.jpg
-   │         │      ...
-   │         │
-   │         └─── imgs_with_no_detections
-   │               ├─── N Esk NC_2018_303.jpeg
-   │               ...
+   │     ├─── circuli
+   │     │     ├─── circuli_spacings.csv
+   │     │     ├─── detections.csv
+   │     │     ├─── detection_images                (if --plot_dets True)
+   │     │     │     ├─── N Esk NC_2018_273_0_detections.jpg
+   │     │     │     ├─── N Esk NC_2018_273_45_detections.jpg
+   │     │     │     ...
+   │     │     ├─── imgs_with_no_detections         (only if some transects had no circuli)
+   │     │     └─── dets_img_id                     (if --dets_separate_files True)
+   │     │
+   │     └─── focus
+   │           ├─── detections.csv
+   │           ├─── detection_images                (if --plot_dets True)
+   │           │     ├─── N Esk NC_2018_273_detections.jpg
+   │           │     ...
+   │           ├─── imgs_with_no_detections         (only if the focus was not found in some scales)
+   │           │     ├─── N Esk NC_2018_303.jpeg
+   │           │     ...
+   │           └─── dets_img_id                     (if --dets_separate_files True)
    │
    ├─── jpegs
-   |     ├─── scales
-   |     │      ├─── N Esk NC_2018_273.jpg
-   |     │      ├─── N Esk NC_2018_303.jpg
-   |     │      ...
-   |     │
-   |     └─── transects
-   |          ├─── N Esk NC_2018_273_0.jpg
-   |          ├─── N Esk NC_2018_273_180.jpg
-   |          ├─── N Esk NC_2018_273_225.jpg
-   |          ├─── N Esk NC_2018_273_270.jpg
-   |          ├─── N Esk NC_2018_273_315.jpg
-   |          ├─── N Esk NC_2018_273_90.jpg
-   |          ...
-   |
+   │     ├─── scales
+   │     │     ├─── N Esk NC_2018_273.jpg
+   │     │     ...
+   │     └─── transects
+   │           ├─── N Esk NC_2018_273_0.jpg
+   │           ├─── N Esk NC_2018_273_45.jpg
+   │           ...
+   │
    └─── log_sscd_detection.log
 ```
 
 
-- The `/jpegs` folder comprises images generated during the process, i.e. the JPEG versions of the original TIF scale drwn images and the transect images
-- The `/detections` folder comprises the detection data from each detector (e.g. `/detections/focus/detections.csv`), the circuli spacings (`detections/circuli/circuli_spacings.csv`), and subdirectories containing images with detection boxes drawn in them if `--plot_dets` is set to `True` (e.g. `/detections/focus/detection_images`)
+- The `/jpegs` folder comprises images generated during the process, i.e. 8-bit RGB JPEG versions of the original scale images and the transect images
+- The `/detections` folder comprises the detection data from each detector (e.g. `/detections/focus/detections.csv`), the circuli spacings (`detections/circuli/circuli_spacings.csv`, in pixels of the original image), and subdirectories containing images with detection boxes drawn in them if `--plot_dets` is set to `True` (e.g. `/detections/focus/detection_images`)
 - `log_sscd_detection.log` contains logging messages generated during the detection process, providing useful info from each step of the detection pipeline
 - In addition, images where detectors fail to locate the scale focus, or any circuli bands in a transect, are copied to a dedicated directory (e.g. `output_dir/detections/focus/imgs_with_no_detections`)
 
@@ -209,9 +198,10 @@ uv run python eval_detector.py \
 | `--anns_dir` | Directory path to annotation files. Expects XML files with Pascal VOC format  | str  |       |
 | `--dets_csv` | Filepath to CSV file containing detection bounding boxes, as outputted from `sscd.py`| str | |
 | `--iou_threshould` | IOU threshold (IOU<sub>thresh</sub>) determining if a detection is TP or FP (see "Metrics" section bellow) | float  | `0.5`  |
-| `--output_dir`| Directory path to evaluation outputs | str           |          |
+| `--output_dir`| Directory for evaluation outputs. Emptied at the start of each run; must not be (or contain) the image/annotation directories | str           |          |
 | `--plot_dets_vs_anns` | Option to generate image plots contrasting detections with annotations | bool   | `True` |
 | `--sep_plots` | Option to produce separate plots for detections and annotations. If `False` draw both in the same plot (recommended for focus detections) | bool  | `False`  |
+| `--get_details` | Also write per-detection and per-annotation evaluation details | bool  | `False`  |
 
 
 ### `eval_detector.py` outputs

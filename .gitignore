@@ -19,6 +19,8 @@ downloads/
 eggs/
 .eggs/
 lib/
+# ...but not the vendored evaluation library's source
+!obj_det_metrics/lib/
 lib64/
 parts/
 sdist/

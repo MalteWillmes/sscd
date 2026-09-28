@@ -1,42 +1,45 @@
+"""
+Convert Pascal VOC (LabelImg) XML annotation files into the whitespace-separated
+txt format used by the evaluator: one line per box, "label xmin ymin xmax ymax".
+
+Usage (from the repository root):
+
+uv run python annotations_xml_to_txt.py \
+    --anns_dir "<some_path>/anns_xml" \
+    --output_dir "<some_path>/anns_txt"
+"""
+
 # import built-in modules
 import argparse
-import os
 import glob
-import shutil
-from time import time
+import os
 from pathlib import Path
 
-
-from tqdm import tqdm
-import pandas as pd
-
 # import local modules
-from sscd_libs.helpers import (
-    boolean_string,
-    clean_output_dir,
-    unpack_for_string,
-    query_yes_no
-    )
-
 from sscd_libs.data_processing import pascal_to_evaltxt
 
 
 # ------------------------------------------------------------------------------
 def main():
+    args_parser = argparse.ArgumentParser(
+        description="Convert Pascal VOC XML annotations to evaluator txt files"
+    )
+    args_parser.add_argument("--anns_dir", required=True, help="directory with .xml annotation files")
+    args_parser.add_argument("--output_dir", required=True, help="directory to write .txt files to")
+    args = args_parser.parse_args()
 
-    base_dir = 'Z:\Adult_Salmon_Scales\Salmon_scale_circuli_detection\SSCD_data\detection_accuracy_analysis'
-    ann_dir = os.path.join(base_dir,'circuli_anns_Bruno_original_90_padded_xml')
-    out_dir = os.path.join(base_dir,'circuli_anns_Bruno_original_90_padded_txt')
+    ann_filepaths = glob.glob(os.path.join(glob.escape(args.anns_dir), "*.xml"))
+    if not ann_filepaths:
+        raise FileNotFoundError(f"No XML annotation files found in {args.anns_dir}")
 
-    # annotations   
-    ann_filepaths = glob.glob(ann_dir + os.path.sep + "*.xml")
-    ann_ids =[Path(name).stem for name in ann_filepaths]
-   
+    # --- Annotations (ground truth bounding boxes): convert from Pascal VOC xml to txt files
+    os.makedirs(args.output_dir, exist_ok=True)
+    for ann_filepath in ann_filepaths:
+        pascal_to_evaltxt(args.anns_dir, Path(ann_filepath).stem, args.output_dir)
 
-    # --- Annotations (ground truth bounding boxes): convert from Pascal VOC xlm to txt files
-    anns_temp_dir = os.path.join(out_dir)
-    os.makedirs(anns_temp_dir, exist_ok=True)
-    
-    for ann_id in ann_ids:
-        pascal_to_evaltxt(ann_dir, ann_id, anns_temp_dir)
+    print(f"Converted {len(ann_filepaths)} annotation files to {args.output_dir}")
 
+
+# ------------------------------------------------------------------------------
+if __name__ == "__main__":
+    main()

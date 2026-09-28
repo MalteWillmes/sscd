@@ -27,7 +27,10 @@ def run(script, *args):
     # releases all TensorFlow memory when it finishes.
     cmd = [sys.executable, script, *args]
     print("\n>>> " + " ".join(cmd) + "\n", flush=True)
-    subprocess.run(cmd, cwd=REPO_DIR, check=True)  # noqa: S603 - fixed scripts, no shell
+    result = subprocess.run(cmd, cwd=REPO_DIR)  # noqa: S603 - fixed scripts, no shell
+    if result.returncode != 0:
+        # the actual error (traceback) was printed by the script itself, just above
+        sys.exit(f"\n{script} failed (exit code {result.returncode}) - see its error message above.")
 
 
 def main():

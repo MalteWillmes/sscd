@@ -10,6 +10,9 @@ Module for miscellaneous utility functions
 
 import shutil
 import os
+import stat
+import sys
+import time
 from pathlib import Path
 
 import requests
@@ -54,6 +57,45 @@ def clean_output_dir(dir_path):
 
 
 # ------------------------------------------------------------------------------
+def _empty_dir(path, attempts=5, wait_s=1.0):
+    """
+    Delete everything in `path` except the output marker (kept so a partially
+    emptied directory is still recognised as SSCD output next time).
+
+    On Windows a file that another program holds open (an image viewer, or a
+    Dropbox/OneDrive client syncing it) cannot be deleted; such locks are
+    usually brief, so retry a few times before giving up with a clear message.
+    """
+
+    def clear_readonly_and_retry(func, p, _exc):
+        os.chmod(p, stat.S_IWRITE)
+        func(p)
+
+    for attempt in range(attempts):
+        try:
+            for entry in path.iterdir():
+                if entry.name == OUTPUT_MARKER:
+                    continue
+                if entry.is_dir() and not entry.is_symlink():
+                    if sys.version_info >= (3, 12):
+                        shutil.rmtree(entry, onexc=clear_readonly_and_retry)
+                    else:
+                        shutil.rmtree(entry, onerror=clear_readonly_and_retry)
+                else:
+                    entry.unlink()
+            return
+        except PermissionError as err:
+            if attempt == attempts - 1:
+                raise PermissionError(
+                    f"Could not empty the output directory '{path}': {err}. A file in it is "
+                    "probably open in another program (an image viewer or editor, or a "
+                    "Dropbox/OneDrive client syncing it). Close it and retry, or choose "
+                    "another --output_dir."
+                ) from err
+            time.sleep(wait_s)
+
+
+# ------------------------------------------------------------------------------
 def prepare_output_dir(output_dir, input_paths=()):
     """
     Create an empty output directory for a run, deleting the results of a
@@ -90,7 +132,7 @@ def prepare_output_dir(output_dir, input_paths=()):
                     f"Output directory '{out}' is not empty and does not contain previous SSCD "
                     "output. Refusing to delete its contents - choose a new or empty directory."
                 )
-            shutil.rmtree(out)
+            _empty_dir(out)
 
     out.mkdir(parents=True, exist_ok=True)
     (out / OUTPUT_MARKER).write_text(

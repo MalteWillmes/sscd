@@ -10,6 +10,7 @@ Usage (from any directory):
 
     uv run python run_example.py             # detection example
     uv run python run_example.py --eval      # ... plus the evaluation example
+    uv run python run_example.py --overlay   # ... plus detections drawn on the scales
     uv run python run_example.py --no_plots  # skip detection plot images (faster)
 """
 
@@ -46,6 +47,11 @@ def main():
         help="also run the evaluation example (data/eval_example)",
     )
     parser.add_argument(
+        "--overlay",
+        action="store_true",
+        help="also draw the circuli detections back onto the scale images (overlay_detections.py)",
+    )
+    parser.add_argument(
         "--no_plots",
         action="store_true",
         help="skip writing images with detections drawn on them",
@@ -70,6 +76,9 @@ def main():
         "--plot_dets", str(not args.no_plots),
     )
 
+    if args.overlay:
+        run("overlay_detections.py", "--output_dir", str(detection_dir))
+
     if args.eval:
         run(
             "eval_detector.py",
@@ -86,6 +95,8 @@ def main():
     print(f"  circuli spacings : {detection_dir / 'detections' / 'circuli' / 'circuli_spacings.csv'}")
     print(f"  focus detections : {detection_dir / 'detections' / 'focus' / 'detections.csv'}")
     print(f"  run log          : {detection_dir / 'log_sscd_detection.log'}")
+    if args.overlay:
+        print(f"  overlays         : {detection_dir / 'overlays'}")
     if args.eval:
         print(f"  evaluation       : {eval_dir / 'evaluation_results.txt'}")
 

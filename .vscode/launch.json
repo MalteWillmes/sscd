@@ -21,6 +21,26 @@
             "justMyCode": true
         },
         {
+            "name": "SSCD: run example + overlay",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/run_example.py",
+            "args": ["--overlay"],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "SSCD: overlay detections of a run",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/overlay_detections.py",
+            "args": ["--output_dir", "${input:runDir}"],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
             "name": "SSCD: run on a folder of scales",
             "type": "debugpy",
             "request": "launch",
@@ -37,6 +57,12 @@
         }
     ],
     "inputs": [
+        {
+            "id": "runDir",
+            "type": "promptString",
+            "description": "Output folder of a finished sscd.py run",
+            "default": "${workspaceFolder}/SSCD_temp_outputs/example"
+        },
         {
             "id": "imgDir",
             "type": "promptString",

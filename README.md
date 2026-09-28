@@ -82,8 +82,9 @@ uv add requests
   1. Open the repository folder in VS Code (with the Python extension installed).
   2. `Ctrl+Shift+P` → *Python: Select Interpreter* → choose the project's `.venv`.
   3. Open *Run and Debug* (`Ctrl+Shift+D`), pick a configuration and press `F5`:
-     - **SSCD: run example** / **SSCD: run example + evaluation**
+     - **SSCD: run example** / **SSCD: run example + evaluation** / **SSCD: run example + overlay**
      - **SSCD: run on a folder of scales**: asks for the image folder and output folder
+     - **SSCD: overlay detections of a run**: asks for the output folder of a finished run
 
   Formatting on save is deliberately disabled in `.vscode/settings.json`, so editing a file
   doesn't restyle it (this fork keeps upstream's formatting to stay easy to merge).
@@ -175,6 +176,33 @@ The following directory tree represents how the outputs from SSCD are structured
 - The `/detections` folder comprises the detection data from each detector (e.g. `/detections/focus/detections.csv`), the circuli spacings (`detections/circuli/circuli_spacings.csv`, in pixels of the original image), and subdirectories containing images with detection boxes drawn in them if `--plot_dets` is set to `True` (e.g. `/detections/focus/detection_images`)
 - `log_sscd_detection.log` contains logging messages generated during the detection process, providing useful info from each step of the detection pipeline
 - In addition, images where detectors fail to locate the scale focus, or any circuli bands in a transect, are copied to a dedicated directory (e.g. `output_dir/detections/focus/imgs_with_no_detections`)
+
+
+### Circuli detections on the original scale image
+
+After a run, `overlay_detections.py` draws the detections back onto the original scale images
+(it re-uses the run's outputs; nothing is re-detected):
+
+```bash
+uv run python overlay_detections.py --output_dir "./SSCD_temp_outputs"
+```
+
+It writes to `<output_dir>/overlays/`:
+
+- `<scale>_overlay.jpg`: the scale image with the focus box (yellow), the outline of each radial
+  transect and a tick across the transect at each detected circulus, one colour per transect
+  (labelled with its angle)
+- `circuli_on_scale.csv`: one row per circulus, with its position on the scale image (`x_px`,
+  `y_px`, the centre of its detection box), its distance from the focus along the transect
+  (`dist_from_focus_px`) and `spacing_px` / `score` as in `circuli_spacings.csv`
+
+| Argument        | Description                                                  | Type | Default |
+|-----------------|--------------------------------------------------------------|------|---------|
+| `--output_dir`  | Output directory of a finished `sscd.py` run                 | str  |         |
+| `--label_every` | Number every n-th circulus on the overlay (0: no numbers)    | int  | `0`     |
+
+Positions are mapped back with the same transect geometry used to cut the transects, accurate to
+about 1 pixel. `run_example.py --overlay` runs this after the example.
 
 
 ## Evaluating SSCD's performance

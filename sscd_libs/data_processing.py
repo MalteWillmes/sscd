@@ -302,6 +302,58 @@ def get_transect_length(focus_centre, transect_rad, im_width, im_height):
 
 
 # ------------------------------------------------------------------------------
+TransectGeometry = collections.namedtuple("TransectGeometry", ["base", "angle_rad", "width", "length"])
+
+
+def transect_geometry(focus_bbox, angle_deg, im_width, im_height):
+    """
+    Geometry of the radial transect at `angle_deg` from a detected focus.
+
+    Single source of truth for both cutting transects out of a scale image
+    (get_transects) and mapping transect detections back onto it
+    (transect_to_image), so the two can never drift apart.
+
+    Args
+    ----
+        focus_bbox: dict-like with xmin, ymin, xmax, ymax of the focus (pixels)
+        angle_deg: transect angle in degrees, counter-clockwise from the image's
+            positive x axis (0 = right, 90 = up)
+        im_width, im_height: scale image size in pixels
+
+    Returns
+    -------
+        TransectGeometry(base, angle_rad, width, length): base is the (x, y)
+        corner of the transect next to the focus (the transect image's top-left
+        pixel), width is the transect's height across (pixels) and length its
+        extent from the focus to the image border (pixels).
+    """
+    xmin, ymin, xmax, ymax = (focus_bbox[k] for k in ("xmin", "ymin", "xmax", "ymax"))
+    focus_centre = ((xmin + xmax)/2, (ymin + ymax)/2)
+    width = min(xmax - xmin, ymax - ymin)/2
+    angle_rad = math.radians(angle_deg)
+    base = get_transect_base_coords(focus_centre, angle_rad, width)
+    length = get_transect_length(focus_centre, angle_rad, im_width, im_height)
+    return TransectGeometry(base, angle_rad, width, length)
+
+
+def transect_to_image(geom, u, v):
+    """
+    Map transect-image pixel coordinates to scale-image coordinates.
+
+    u runs along the transect (the transect image's x axis, 0 at the focus end)
+    and v across it (the transect image's y axis). Works on scalars or arrays.
+
+    Returns (x, y) in the scale image.
+    """
+    cos_a, sin_a = math.cos(geom.angle_rad), math.sin(geom.angle_rad)
+    x = geom.base[0] + u*cos_a + v*sin_a
+    y = geom.base[1] - u*sin_a + v*cos_a
+    return x, y
+
+
+
+
+# ------------------------------------------------------------------------------
 def get_transects(focus_bbox, transect_degrees, img_filepath, output_dir):
     """
     Extract, and store, images of radial transects off the scale's focus
@@ -329,29 +381,16 @@ def get_transects(focus_bbox, transect_degrees, img_filepath, output_dir):
     im = Image.open(img_filepath)
     im.load()  # read pixels now so the file handle can be closed
     im_width, im_height = im.size
-    bb_xmin = focus_bbox["xmin"]
-    bb_ymin = focus_bbox["ymin"]
-    bb_xmax = focus_bbox["xmax"]
-    bb_ymax = focus_bbox["ymax"]
-    bb_xcentre = (bb_xmax + bb_xmin)/2
-    bb_ycentre = (bb_ymin + bb_ymax)/2    
-    focus_centre = (bb_xcentre, bb_ycentre)
-    trans_width = min((bb_xmax-bb_xmin), (bb_ymax - bb_ymin))/2
-        
     img_id = Path(img_filepath).stem
-
-    #breakpoint()
     
     for angle_deg in transect_degrees:     
-               
-        angle_rad = math.radians(angle_deg)
-        base = get_transect_base_coords(focus_centre, angle_rad, trans_width)
-        trans_length = get_transect_length(focus_centre, angle_rad, im_width, im_height)
-        if trans_length < 1:
+        
+        geom = transect_geometry(focus_bbox, angle_deg, im_width, im_height)
+        if geom.length < 1:
             # focus sits on the image border in this direction: nothing to crop
             logger.warning("Skipping transect %s_%s: focus lies on the image border", img_id, angle_deg)
             continue
-        cropped_im = crop(im, base, angle_rad, trans_width, trans_length)
+        cropped_im = crop(im, geom.base, geom.angle_rad, geom.width, geom.length)
         transect_outfile = os.path.join(output_dir, img_id + f'_{angle_deg}.jpg')
         cropped_im.save(transect_outfile, 'JPEG')
          

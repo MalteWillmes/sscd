@@ -107,7 +107,7 @@ def getBoundingBoxes(directory,
     if allClasses is None:
         allClasses = []
     # Read ground truths
-    files = glob.glob(directory + os.path.sep + "*.txt")
+    files = glob.glob(os.path.join(glob.escape(directory), "*.txt"))
     files.sort()
     # Read GT detections from txt file
     # Each line of the files in the groundtruths folder represents a ground truth bounding box
@@ -251,7 +251,17 @@ def evaluate(gtFolder, detFolder, savePath, iouThreshold = 0.5, gtFormat = 'xywh
     allBoundingBoxes, allClasses = getBoundingBoxes(
         detFolder, False, detFormat, detCoordType, allBoundingBoxes, allClasses, imgSize=imgSize)
     allClasses.sort()
-    
+
+    # Annotation labels must match the detector's class names exactly, otherwise
+    # every detection counts as FP and every annotation as FN
+    boxes = allBoundingBoxes.getBoundingBoxes()
+    gt_classes = {bb.getClassId() for bb in boxes if bb.getBBType() == BBType.GroundTruth}
+    det_classes = {bb.getClassId() for bb in boxes if bb.getBBType() != BBType.GroundTruth}
+    if gt_classes and det_classes and gt_classes != det_classes:
+        logger.warning("Annotation classes %s differ from detection classes %s - check the labels "
+                       "used when annotating; mismatched classes are scored as misses",
+                       sorted(gt_classes), sorted(det_classes))
+
     evaluator = Evaluator()
     acc_AP = 0
     validClasses = 0
@@ -314,8 +324,11 @@ def evaluate(gtFolder, detFolder, savePath, iouThreshold = 0.5, gtFormat = 'xywh
             loggerText.append('\tMCE: %s (%s)\n' % (MCE, cl))
             loggerText.append('\tF1: %s (%s)\n' % (F1, cl))
     
-    mAP = acc_AP / validClasses
-    mAP_str = "{0:.2f}%".format(mAP * 100)
+    if validClasses > 0:
+        mAP = acc_AP / validClasses
+        mAP_str = "{0:.2f}%".format(mAP * 100)
+    else:
+        mAP_str = "n/a (no annotated objects)"
     # print('mAP: %s' % mAP_str)
     f.write('\n\n\nmAP: %s' % mAP_str)
     loggerText.append('\t......................\n\tmAP: %s\n' % mAP_str)

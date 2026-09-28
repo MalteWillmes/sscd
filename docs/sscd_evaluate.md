@@ -117,7 +117,7 @@ uv run python eval_detector.py \
     --anns_dir "<some_path>/eval_circuli_detector/anns" \
     --dets_csv "<some_path>/eval_circuli_detector/detections.csv" \
     --iou_threshould 0.5 \
-    --output_dir "<some_path>/eval_circuli_detector/" \
+    --output_dir "<some_path>/eval_circuli_detector/eval_outputs" \
     --plot_dets_vs_anns True \
     --sep_plots True
 ```

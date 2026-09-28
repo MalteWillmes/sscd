@@ -46,6 +46,7 @@ import pandas as pd
 from sscd_libs.helpers import (
     boolean_string,
     clean_output_dir,
+    prepare_output_dir,
     unpack_for_string,
     query_yes_no
     )
@@ -144,16 +145,22 @@ def main():
     # --- Start runtime timer
     run_start = time()
         
-    # --- Clean output directory of all subdirectories and files from a previous run
-    clean_output_dir(args["output_dir"])
-    
-        
-    
+    # --- Check inputs exist before touching the output directory
+    for arg, check in (("img_dir", os.path.isdir), ("anns_dir", os.path.isdir), ("dets_csv", os.path.isfile)):
+        if not check(args[arg]):
+            raise FileNotFoundError(f"--{arg} not found: {args[arg]}")
+
+    # --- Empty the output directory of results from a previous run
+    prepare_output_dir(
+        args["output_dir"],
+        input_paths=[args["img_dir"], args["anns_dir"], args["dets_csv"]],
+        )
+
+
     # --------------------------------- #
     # --      Initiate Logger       --- #
-    # --------------------------------- #  
+    # --------------------------------- #
 
-    os.makedirs(args["output_dir"], exist_ok=True)
     log_filename = os.path.join(args["output_dir"], "log_sscd_evaluation.log")
     
     # Create console handler
@@ -186,7 +193,7 @@ def main():
         
     # images
     
-    img_filepaths = glob.glob(args["img_dir"] + os.path.sep + "*.jpg")
+    img_filepaths = glob.glob(os.path.join(glob.escape(args["img_dir"]), "*.jpg"))
     if len(img_filepaths) == 0:
         FileNotFound_logAndOut("No JPG image files found in directory: {}".format(args["img_dir"]))
         
@@ -195,10 +202,10 @@ def main():
     
     # annotations   
     # TODO: Handle case where already in txt format
-    ann_filepaths = glob.glob(args["anns_dir"] + os.path.sep + "*.xml")
+    ann_filepaths = glob.glob(os.path.join(glob.escape(args["anns_dir"]), "*.xml"))
     ann_format = "xml"
     if len(ann_filepaths) == 0:
-        ann_filepaths = glob.glob(args["anns_dir"] + os.path.sep + "*.txt")
+        ann_filepaths = glob.glob(os.path.join(glob.escape(args["anns_dir"]), "*.txt"))
         ann_format = "txt"
     if len(ann_filepaths) == 0:
         FileNotFound_logAndOut("No XML or TXT annotation files found in directory: {}".format(args["anns_dir"]))
@@ -208,7 +215,8 @@ def main():
     
     # detections
     try:
-        dets = pd.read_csv(args["dets_csv"])
+        # img_id as str: numeric file names must keep e.g. leading zeros
+        dets = pd.read_csv(args["dets_csv"], dtype={"img_id": str})
     except FileNotFoundError:
         FileNotFound_logAndOut("No such file or directory: {}".format(args["dets_csv"]))
         
@@ -278,12 +286,14 @@ def main():
     
     # --- Annotations (ground truth bounding boxes): convert from Pascal VOC xlm to txt files
     
-    anns_temp_dir = args["anns_dir"]
-    if ann_format == "xml":
-        anns_temp_dir = os.path.join(args["output_dir"], "temp", "gt_temp")
-        os.makedirs(anns_temp_dir, exist_ok=True)
-        for ann_id in ann_ids:
+    # (always work on copies in the output dir: the user's annotation dir is never written to)
+    anns_temp_dir = os.path.join(args["output_dir"], "temp", "gt_temp")
+    os.makedirs(anns_temp_dir, exist_ok=True)
+    for ann_id in ann_ids:
+        if ann_format == "xml":
             pascal_to_evaltxt(args["anns_dir"], ann_id, anns_temp_dir)
+        else:
+            shutil.copy(os.path.join(args["anns_dir"], ann_id + ".txt"), anns_temp_dir)
     
     # generate empty text files for missing xlm annotation files
     for ann_id in ann_id_missing:
@@ -296,7 +306,8 @@ def main():
     # image IDs in detection data being used in evaluation
     det_ids_eval = [x for x in img_ids if x in set(det_ids)]
     dets_eval = dets[dets['img_id'].isin(det_ids_eval)] # subset detection data
-    dets_eval = dets_eval.drop(columns = ["detection_nr", "img_prop"]) # Remove irrelevant columns
+    # the evaluator reads these fields by position, so select them explicitly
+    dets_eval = dets_eval[["img_id", "class_name", "score", "xmin", "ymin", "xmax", "ymax"]]
     
     # set up temporary directory to hold detection files
     dets_temp_dir = os.path.join(args["output_dir"], "temp", "dets_temp")
@@ -367,7 +378,7 @@ def main():
         detFormat ="xyrb",
         gtCoordinates = "abs",
         detCoordinates = "abs",
-        showPlot=True,
+        showPlot=False,  # the PR curve is saved to output_dir
         #imgSize = (3904,64),
         get_details = args["get_details"]
         )

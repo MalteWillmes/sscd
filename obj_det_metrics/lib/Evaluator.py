@@ -193,11 +193,13 @@ class Evaluator:
             
             # Count gts by image
             num_gts_by_image = Counter([item[0] for item in gts])
-            num_gts_by_image = pd.DataFrame.from_dict(num_gts_by_image, orient='index').reset_index()
-            num_gts_by_image.rename(columns={'index':'imageName', 0:'GT'}, inplace=True)
-            
-            # Calculate FN and tidy up for appending
-            c_res_by_image = pd.merge(dets_summary_by_image, num_gts_by_image, on='imageName')
+            num_gts_by_image = pd.DataFrame(list(num_gts_by_image.items()), columns=['imageName', 'GT'])
+
+            # Calculate FN and tidy up for appending. Outer merge keeps images with
+            # annotations but no detections (all FN) and vice versa (all FP).
+            c_res_by_image = pd.merge(dets_summary_by_image.reset_index(), num_gts_by_image,
+                                      on='imageName', how='outer')
+            c_res_by_image[["TP", "FP", "GT"]] = c_res_by_image[["TP", "FP", "GT"]].fillna(0).astype(int)
             c_res_by_image["FN"] = c_res_by_image.GT - c_res_by_image.TP            
             c_res_by_image["class"] = c
             c_res_by_image = c_res_by_image[['imageName', 'GT', 'TP', 'FP', 'FN', 'MCE', "class"]]

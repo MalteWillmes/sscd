@@ -317,7 +317,7 @@ def plot_detections(
         imgfile_label = "detections"
 
     plt.savefig(
-        os.path.join(output_dir, dets.img_id.iloc[0] + imgfile_label + ".jpg"),
+        os.path.join(output_dir, f"{dets.img_id.iloc[0]}_{imgfile_label}.jpg"),
         bbox_inches="tight",
         pad_inches=0,
     )
@@ -449,7 +449,7 @@ def detect(
     logger.info("classes loaded")
 
     # --- get image filepaths
-    img_filepaths = sorted(glob.glob(img_dir + "/*.jpg"))
+    img_filepaths = sorted(glob.glob(os.path.join(glob.escape(img_dir), "*.jpg")))
 
     logger.info("Starting detection in %d images", len(img_filepaths))
 

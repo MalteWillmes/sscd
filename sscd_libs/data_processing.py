@@ -12,6 +12,7 @@ Module for utility functions dealing with data/image preparation and processing
 import os
 import glob
 from pathlib import Path
+import collections
 import concurrent.futures
 import logging
 import math
@@ -32,9 +33,33 @@ logger = logging.getLogger(__name__)
 
 
 # ------------------------------------------------------------------------------
+# accepted input image types (matched case-insensitively)
+IMAGE_EXTENSIONS = (".tif", ".tiff", ".jpg", ".jpeg")
+
+
+def to_8bit_rgb(im):
+    """
+    Convert a PIL image of any common mode to 8-bit RGB, the input the detectors
+    were trained on. 16-bit (and other high bit-depth) greyscale is scaled down
+    to 8 bits rather than clipped; alpha channels are dropped.
+    """
+    if im.mode in ("I;16", "I;16B", "I;16L", "I;16N", "I", "F"):
+        pixels = np.asarray(im, dtype=np.float64)
+        # 16-bit images use the full 0-65535 range; beyond that, stretch to the data range
+        if pixels.max() <= 255:
+            scaled = pixels
+        elif pixels.max() <= 65535 and pixels.min() >= 0:
+            scaled = pixels / 257
+        else:
+            lo, hi = pixels.min(), pixels.max()
+            scaled = (pixels - lo) / (hi - lo) * 255
+        im = Image.fromarray(np.clip(np.round(scaled), 0, 255).astype(np.uint8), mode="L")
+    return im if im.mode == "RGB" else im.convert("RGB")
+
+
 def tiff_to_jpg(tiff_input_filepath, jpg_output_filepath):
     """
-    Converts a tiff image to jpeg format.
+    Converts a tiff (or jpeg) image to an 8-bit RGB jpeg.
 
     Args
     ----------
@@ -46,7 +71,10 @@ def tiff_to_jpg(tiff_input_filepath, jpg_output_filepath):
     """
     
     with Image.open(tiff_input_filepath) as im:
-        im.save(jpg_output_filepath, 'JPEG', quality=95)
+        if getattr(im, "n_frames", 1) > 1:
+            logger.warning("%s has %d pages/frames - only the first is used",
+                           Path(tiff_input_filepath).name, im.n_frames)
+        to_8bit_rgb(im).save(jpg_output_filepath, 'JPEG', quality=95)
     
     
     
@@ -61,8 +89,8 @@ def images_tiff_to_jpeg(input_imgs_dir, output_imgs_dir):
     -----
     input_imgs_dir : str
         path to directory where image files are located. Input formats accepted: 
-            TIFF, TIF and JPG. Jpeg files are simply copied to the output 
-            directory
+            TIFF/TIF and JPG/JPEG (any case). All are re-encoded as 8-bit RGB jpegs
+            in the output directory
     output_imgs_dir : str
         path directory where jpeg image files should be written
         
@@ -73,16 +101,24 @@ def images_tiff_to_jpeg(input_imgs_dir, output_imgs_dir):
     
     """
 
-    # --- list image pathfiles in input directory with tiff (or jpg) formats
-    types = ('*.tif', '*.tiff', '*.jpg') # file types accepted
-    img_input_fpaths = []
-    for ftype in types:
-        img_input_fpaths.extend(glob.glob(input_imgs_dir + "/" + ftype))
+    # --- list image files in input directory (extension matched case-insensitively,
+    # without glob, so directory names containing [ ] etc. work too)
+    img_input_fpaths = sorted(
+        str(p) for p in Path(input_imgs_dir).iterdir()
+        if p.is_file() and p.suffix.lower() in IMAGE_EXTENSIONS
+        )
         
     # Raise exception if there are no valid images present in input directory
     if len(img_input_fpaths) == 0:
-        #raise ValueError('No images of type TIFF or PNG found in input folder')
-        raise Exception('No images of type TIFF found in input folder')
+        raise FileNotFoundError(f"No images of type {', '.join(IMAGE_EXTENSIONS)} found in {input_imgs_dir}")
+    
+    # Two inputs with the same name (e.g. a.tif and a.jpg) would overwrite each
+    # other's converted image and results
+    stems = collections.Counter(Path(p).stem.lower() for p in img_input_fpaths)
+    duplicates = sorted(stem for stem, n in stems.items() if n > 1)
+    if duplicates:
+        raise ValueError("Several input images share the same file name (ignoring extension): "
+                         + ", ".join(duplicates))
         
     # --- generate output filepaths for converted images
     img_output_fpaths = [os.path.join(output_imgs_dir, Path(name).stem + '.jpg') 
@@ -312,6 +348,10 @@ def get_transects(focus_bbox, transect_degrees, img_filepath, output_dir):
         angle_rad = math.radians(angle_deg)
         base = get_transect_base_coords(focus_centre, angle_rad, trans_width)
         trans_length = get_transect_length(focus_centre, angle_rad, im_width, im_height)
+        if trans_length < 1:
+            # focus sits on the image border in this direction: nothing to crop
+            logger.warning("Skipping transect %s_%s: focus lies on the image border", img_id, angle_deg)
+            continue
         cropped_im = crop(im, base, angle_rad, trans_width, trans_length)
         transect_outfile = os.path.join(output_dir, img_id + f'_{angle_deg}.jpg')
         cropped_im.save(transect_outfile, 'JPEG')

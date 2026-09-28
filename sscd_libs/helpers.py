@@ -10,8 +10,18 @@ Module for miscellaneous utility functions
 
 import shutil
 import os
+from pathlib import Path
+
 import requests
 from tqdm import tqdm
+
+REPO_DIR = Path(__file__).resolve().parent.parent
+
+# Marker file identifying a directory as SSCD output, which may be emptied on
+# the next run. Log files from runs made before the marker existed are also
+# accepted as proof, so existing output directories keep working.
+OUTPUT_MARKER = ".sscd_output"
+LEGACY_OUTPUT_FILES = ("log_sscd_detection.log", "log_sscd_evaluation.log")
 
 
 # ------------------------------------------------------------------------------
@@ -41,6 +51,51 @@ def clean_output_dir(dir_path):
             shutil.rmtree(dir_path)
         except OSError as e:
             print("Error: %s : %s" % (dir_path, e.strerror))
+
+
+# ------------------------------------------------------------------------------
+def prepare_output_dir(output_dir, input_paths=()):
+    """
+    Create an empty output directory for a run, deleting the results of a
+    previous SSCD run in it if present.
+
+    Refuses (ValueError) rather than deleting anything that is not SSCD output:
+    - output_dir equal to, or a parent of, any of `input_paths`, the repository,
+      its data/ folder, the current working directory or the home directory
+    - a non-empty directory without the SSCD output marker (or a log file from
+      an earlier SSCD run)
+    """
+    out = Path(output_dir).resolve()
+
+    guarded = [Path(p) for p in input_paths] + [REPO_DIR, REPO_DIR / "data", Path.cwd(), Path.home()]
+    for path in guarded:
+        path = path.resolve()
+        if out == path or out in path.parents:
+            raise ValueError(
+                f"Output directory '{out}' is, or contains, '{path}'. The output directory is "
+                "emptied at the start of every run - choose a separate, dedicated directory."
+            )
+    if out.parent == out:
+        raise ValueError(f"Output directory '{out}' is a filesystem root.")
+
+    if out.exists():
+        if not out.is_dir():
+            raise ValueError(f"Output path '{out}' exists and is not a directory.")
+        if any(out.iterdir()):
+            is_sscd_output = (out / OUTPUT_MARKER).exists() or any(
+                (out / name).exists() for name in LEGACY_OUTPUT_FILES
+            )
+            if not is_sscd_output:
+                raise ValueError(
+                    f"Output directory '{out}' is not empty and does not contain previous SSCD "
+                    "output. Refusing to delete its contents - choose a new or empty directory."
+                )
+            shutil.rmtree(out)
+
+    out.mkdir(parents=True, exist_ok=True)
+    (out / OUTPUT_MARKER).write_text(
+        "This directory holds SSCD output and is emptied at the start of each run.\n"
+    )
 
 
 # ------------------------------------------------------------------------------

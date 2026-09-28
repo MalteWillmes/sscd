@@ -28,7 +28,6 @@ uv run python sscd.py \
 # import built-in modules
 import argparse
 import os
-import shutil
 import glob
 from time import time
 #import multiprocessing
@@ -40,27 +39,31 @@ import pandas as pd
 
 
 # import local modules
-from sscd_libs.helpers import boolean_string
+from sscd_libs.helpers import (
+    REPO_DIR,
+    boolean_string,
+    prepare_output_dir,
+    unpack_for_string,
+    )
 
-from sscd_libs.detection import detect 
+from sscd_libs.detection import detect
 
 from sscd_libs.data_processing import (
     images_tiff_to_jpeg,
     get_transects
     )
 
-from sscd_libs.helpers import unpack_for_string
 
-
-
-# ------------------------------------------------------------------------------
-def clean_output_dir(dir_path):
-        
-    if os.path.exists(dir_path):
-        try:
-            shutil.rmtree(dir_path)
-        except OSError as e:
-            print("Error: %s : %s" % (dir_path, e.strerror))
+# model files, resolved relative to the repository so sscd.py runs from any directory
+DATA_DIR = os.path.join(REPO_DIR, "data")
+WEIGHTS = {
+    "focus": os.path.join(DATA_DIR, "yoloV3_checkpoints", "focus_detector", "yolov3_train_190.tf"),
+    "circuli": os.path.join(DATA_DIR, "yoloV3_checkpoints", "circuli_detector", "yolov3_train_22.tf"),
+    }
+CLASS_FILES = {
+    "focus": os.path.join(DATA_DIR, "scales_label.names"),
+    "circuli": os.path.join(DATA_DIR, "scale_transects_label.names"),
+    }
 
 
 
@@ -262,19 +265,32 @@ def main():
     
     # Start runtime timer
     run_start = time()
-    
-        
-    # --- Clean output directory of all subdirectories and files from a previous run
-    clean_output_dir(args["output_dir"])
-           
-    
-    
+
+
+    # --------------------------------------- #
+    # --               Checks             --- #
+    # --------------------------------------- #
+    # (before touching the output directory, so a typo can't cost previous results)
+
+    if not os.path.isdir(args["img_dir"]):
+        raise FileNotFoundError(f"Image directory not found: {args['img_dir']}")
+
+    # -- Check if weights are placed correctly
+    for detector, weights_file in WEIGHTS.items():
+        if not os.path.exists(weights_file + ".index"):
+            raise FileNotFoundError(f"Checkpoint files for the {detector} detector not found "
+                                    f"({weights_file}.*). Please refer to the README.md file and "
+                                    "follow instructions on how to set up yolo weights")
+
+    # --- Empty the output directory of results from a previous run
+    prepare_output_dir(args["output_dir"], input_paths=[args["img_dir"]])
+
+
     # --------------------------------------- #
     # --       Logger Configuration       --- #
     # --------------------------------------- #
-    
-    # set-up dir and log filename
-    os.makedirs(args["output_dir"], exist_ok=True)
+
+    # set-up log filename
     log_filename = os.path.join(args["output_dir"], "log_sscd_detection.log")
     
     # Create console handler
@@ -295,32 +311,8 @@ def main():
     
     global logger
     logger = logging.getLogger(__name__)
-    
-    
 
-    
-    # --------------------------------------- #
-    # --               Checks             --- #
-    # --------------------------------------- #  
-    
-    # -- Check if weights are placed correctly
-    # Focus detector
-    if len(glob.glob("./data/yoloV3_checkpoints/focus_detector/*.index")) == 0:
-        raise FileNotFoundError("Checkpoint files for focus detector not found."
-                                "Please refer to the README.md file and follow instructions on how to set up yolo weights")
-    elif len(glob.glob("./data/yoloV3_checkpoints/focus_detector/*.index")) > 1:
-        raise IOError("Too many checkpoints found for the focus detector model (only one checkpoint expected)."
-                      "Please refer to the README file and follow instructions on how to set up yolo weights")
-        
-    # circuli detector    
-    if len(glob.glob("./data/yoloV3_checkpoints/circuli_detector/*.index")) == 0:
-        raise FileNotFoundError("Checkpoint files for circuli detector not found."
-                                "Please refer to the README.md file and follow instructions on how to set up yolo weights")
-    elif len(glob.glob("./data/yoloV3_checkpoints/circuli_detector/*.index")) > 1:
-        raise IOError("Too many checkpoints found for the circuli detector model (only one checkpoint expected)."
-                      "Please refer to the README file and follow instructions on how to set up yolo weights")
-    
-    
+
     
     # --------------------------------- #
     # --      File Management       --- #
@@ -361,8 +353,8 @@ def main():
     logger.info("Gearing up focus detection")
     focus_dets = detect(img_dir = scales_jpegs_dir, 
             det_dir = focus_detections_dir, 
-            weights = './data/yoloV3_checkpoints/focus_detector/yolov3_train_190.tf', 
-            classes_file = './data/scales_label.names',
+            weights = WEIGHTS["focus"],
+            classes_file = CLASS_FILES["focus"],
             input_width=1376, 
             input_height=1376,
             yolo_score_threshold = 0.5, 
@@ -415,8 +407,8 @@ def main():
         circuli_dets = detect(
             img_dir = transects_jpegs_dir, 
             det_dir = circuli_detections_dir, 
-            weights = './data/yoloV3_checkpoints/circuli_detector/yolov3_train_22.tf', 
-            classes_file = './data/scale_transects_label.names',
+            weights = WEIGHTS["circuli"],
+            classes_file = CLASS_FILES["circuli"],
             input_width = 3904, 
             input_height = 64,
             yolo_score_threshold = 0.3, 
@@ -465,8 +457,8 @@ def main():
     
     ## --- 8. Summarise Run
         
-    num_scales = len(glob.glob(scales_jpegs_dir + os.path.sep + "*.jpg"))
-    num_transects = len(glob.glob(transects_jpegs_dir + os.path.sep + "*.jpg"))   
+    num_scales = len(glob.glob(os.path.join(glob.escape(scales_jpegs_dir), "*.jpg")))
+    num_transects = len(glob.glob(os.path.join(glob.escape(transects_jpegs_dir), "*.jpg")))
     
      # calculate runtime duration (mins)
     run_duration = round((time() - run_start)/60, 2)

@@ -438,27 +438,29 @@ def detect(
     n_vars = load_keras2_checkpoint(yolo, weights)
     logger.info(f"weights loaded ({n_vars} variables)")
 
+    # Run the model as a compiled graph: Keras 3 eager calls keep every
+    # intermediate activation alive until the forward pass ends (~5.6 GiB peak
+    # for the 1376x1376 focus model vs ~1 GiB as a tf.function; same output).
+    # Input size is fixed per detect() call, so this traces only once.
+    predict = tf.function(lambda x: yolo(x, training=False))
+
     # --- load object classes
     class_names = [c.strip() for c in open(classes_file).readlines()]
     logger.info("classes loaded")
 
     # --- get image filepaths
-    img_filepaths = glob.glob(img_dir + "/*.jpg")
-
-    # initiate data frame to store detections in all images
-    all_detections = pd.DataFrame()
+    img_filepaths = sorted(glob.glob(img_dir + "/*.jpg"))
 
     logger.info("Starting detection in %d images", len(img_filepaths))
 
-    # breakpoint()
-
-    all_detections = pd.DataFrame()
+    # per-image detection frames, concatenated once after the loop
+    img_detections_dfs = []
     no_detections_img_id = []
-    no_detections_img = []
+    no_det_img_dir = os.path.join(det_dir, "imgs_with_no_detections")
 
     for img_filepath in tqdm(img_filepaths, ascii=True, ncols=120):
         # read-in original img as a tensor
-        img_orig = tf.image.decode_image(open(img_filepath, "rb").read(), channels=3)
+        img_orig = tf.image.decode_image(tf.io.read_file(img_filepath), channels=3)
 
         # get original image dimensions (width x height)
         img_orig_wh = np.flip(img_orig.shape[0:2].as_list())
@@ -471,19 +473,19 @@ def detect(
         img = transform_images(img, input_height, input_width)
 
         # Predict in image
-        img_detections_tf = yolo(img)
+        img_detections_tf = predict(img)
 
         # Convert detection data to dataframe
         img_detections_df = detections_as_df(
             img_detections_tf, img_orig_wh, img_id, class_names
         )
 
-        # append to overall dataset
-        all_detections = pd.concat([all_detections, img_detections_df])
+        # keep for overall dataset
+        img_detections_dfs.append(img_detections_df)
 
         # drop rows with nan (i.e. return empty DF if no detections found),
         # which is essential for ploting
-        img_detections_df.dropna(subset=["score"], inplace=True)
+        img_detections_df = img_detections_df.dropna(subset=["score"])
 
         # if requested, and if detections present, plot images with detections
         if plot_dets and img_detections_df.shape[0] > 0:
@@ -493,29 +495,30 @@ def detect(
                 det_img_dir,
                 draw_det_num=draw_det_num,
                 fig_w=fig_w,
-                fig_h=fig_w,
+                fig_h=fig_h,
             )
 
-        # if no detections in image, store image pixel data and ID
+        # if no detections in image, save it straight away for visual check
+        # (rather than holding every such image in memory until the end)
         if img_detections_df.shape[0] == 0:
             no_detections_img_id.append(img_id)
-            no_detections_img.append(img_orig)
+            os.makedirs(no_det_img_dir, exist_ok=True)
+            im = Image.fromarray(img_orig.numpy())
+            im.save(os.path.join(no_det_img_dir, img_id + ".jpeg"), "JPEG", quality=95)
 
     ## end of loop
+
+    # ignore_index: a unique index keeps later groupby/assign steps aligned
+    if img_detections_dfs:
+        all_detections = pd.concat(img_detections_dfs, ignore_index=True)
+    else:
+        all_detections = pd.DataFrame()
 
     # Write out dataframe with all detections
     all_detections.to_csv(os.path.join(det_dir, "detections.csv"), index=False)
 
     # Reporting images with no detections
     if len(no_detections_img_id) > 0:
-        no_det_img_dir = os.path.join(det_dir, "imgs_with_no_detections")
-        os.makedirs(no_det_img_dir, exist_ok=True)
-
-        # write image to specific folder for visual check
-        for img_id, img_orig in zip(no_detections_img_id, no_detections_img):
-            im = Image.fromarray(img_orig.numpy())
-            im.save(os.path.join(no_det_img_dir, img_id + ".jpeg"), "JPEG", quality=95)
-
         logger.warning(
             f"Failed to detect {unpack_for_string(class_names)} in {len(no_detections_img_id)} "
             f"image(s):\n\n\t{unpack_for_string(no_detections_img_id)}"

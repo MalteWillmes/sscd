@@ -143,7 +143,7 @@ def circuli_checks(circuli_dets_df, circuli_max_boxes):
     # NOTE: 20% is arbitrary at this point. Should be tunned with more usage and better grasp of common problems
     prop_large_spacings = large_spacings.shape[0]/circuli_dets_df.shape[0]   
     if prop_large_spacings > 0.2:
-        logger.warning("... Over 20% of extracted spacings are abnormally large. ", 
+        logger.warning("... Over 20% of extracted spacings are abnormally large. "
                        "Check circuli detection images as something might have gone wrong "
                        "(e.g. unsuitable images; detection deterioration)\n\n")
         issues += 1
@@ -153,7 +153,7 @@ def circuli_checks(circuli_dets_df, circuli_max_boxes):
     # NOTE: 30% is arbitrary at this point. Should be tunned with more usage and better grasp of common problems
     prop_tiny_spacings = circuli_dets_df.query("spacing_px <= 1").shape[0]/circuli_dets_df.shape[0]   
     if prop_tiny_spacings > 0.3:
-        logger.warning("...Over 30% of extracted spacings are abnormally small. ", 
+        logger.warning("...Over 30% of extracted spacings are abnormally small. "
                        "Check circuli detection images as something might have gone wrong "
                        "(e.g. unsuitable images; detection deterioration)\n\n")
         issues += 1
@@ -437,7 +437,8 @@ def main():
         
         circuli_dets["x_center"] = (circuli_dets["xmin"]+circuli_dets["xmax"])/2
         circuli_dets["y_center"] = (circuli_dets["ymin"]+circuli_dets["ymax"])/2
-        circuli_dets["spacing_px"] = circuli_dets.groupby('img_id', group_keys=False).apply(lambda x: x.x_center.diff())
+        # detections are sorted by x within each transect (see detections_as_df)
+        circuli_dets["spacing_px"] = circuli_dets.groupby("img_id")["x_center"].diff()
         circuli_dets.rename(columns={"detection_nr": "circulus_nr"}, inplace = True)
         
         # Write out dataframe with all detections
@@ -451,7 +452,7 @@ def main():
         ## --- 8. Summary stats of circuli outputs
         circuli_summary_stats = circuli_dets[["score", "spacing_px"]].describe(percentiles = [0.05, .5, .95])
         circuli_summary_stats.rename(columns = {"score":"det_conf_score"}, inplace = True)
-        circuli_summary_stats = circuli_summary_stats.round({"conf_score":4, "spacing_px":2})
+        circuli_summary_stats = circuli_summary_stats.round({"det_conf_score":4, "spacing_px":2})
 
     else:
             

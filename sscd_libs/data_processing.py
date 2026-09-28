@@ -45,8 +45,8 @@ def tiff_to_jpg(tiff_input_filepath, jpg_output_filepath):
     
     """
     
-    im = Image.open(tiff_input_filepath)
-    im.save(jpg_output_filepath, 'JPEG', quality=95)
+    with Image.open(tiff_input_filepath) as im:
+        im.save(jpg_output_filepath, 'JPEG', quality=95)
     
     
     
@@ -88,8 +88,11 @@ def images_tiff_to_jpeg(input_imgs_dir, output_imgs_dir):
     img_output_fpaths = [os.path.join(output_imgs_dir, Path(name).stem + '.jpg') 
                          for name in img_input_fpaths]
     
-    # use a ProcessPoolExecutor to convert the  images in parallel
-    with concurrent.futures.ProcessPoolExecutor() as executor:
+    # convert images in parallel with a few threads (Pillow releases the GIL
+    # while decoding/encoding). A process pool re-imports sscd.py - and with it
+    # TensorFlow - in every worker on Windows, multiplying memory use.
+    max_workers = min(4, os.cpu_count() or 1)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         
         logger.info("Converting %d images to jpeg format", len(img_input_fpaths))
         
@@ -289,6 +292,7 @@ def get_transects(focus_bbox, transect_degrees, img_filepath, output_dir):
     """
     
     im = Image.open(img_filepath)
+    im.load()  # read pixels now so the file handle can be closed
     im_width, im_height = im.size
     bb_xmin = focus_bbox["xmin"]
     bb_ymin = focus_bbox["ymin"]

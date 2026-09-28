@@ -161,7 +161,7 @@ class Evaluator:
             
                 cl_dets_details =  pd.DataFrame(cl_dets_details).sort_values(by=['imageName', 'cx_det'])
                 cl_dets_details['det_num'] = cl_dets_details.groupby('imageName',sort=False).cumcount() + 1
-                dets_details = dets_details.append(cl_dets_details)
+                dets_details = pd.concat([dets_details, cl_dets_details])
                    
                 cl_gts_hit = [x.tolist() for x in det.values()]       
                 cl_gts_hit = [int(item) for sublist in cl_gts_hit for item in sublist]
@@ -176,7 +176,7 @@ class Evaluator:
             
                 cl_gts_details = pd.DataFrame(cl_gts_details).sort_values(by=['imageName', 'cx_gt'])
                 cl_gts_details['gt_num'] = cl_gts_details.groupby('imageName', sort=False).cumcount() + 1
-                gts_details = gts_details.append(cl_gts_details)
+                gts_details = pd.concat([gts_details, cl_gts_details])
                 
                 
             #breakpoint()
@@ -189,7 +189,7 @@ class Evaluator:
                 "MCE": centerError
                 }           
             
-            dets_summary_by_image = pd.DataFrame(dets_summary_by_image).groupby("imageName").agg({"TP":"sum", "FP":"sum", "MCE": np.nanmean})                       
+            dets_summary_by_image = pd.DataFrame(dets_summary_by_image).groupby("imageName").agg({"TP":"sum", "FP":"sum", "MCE": "mean"})                       
             
             # Count gts by image
             num_gts_by_image = Counter([item[0] for item in gts])
@@ -201,7 +201,7 @@ class Evaluator:
             c_res_by_image["FN"] = c_res_by_image.GT - c_res_by_image.TP            
             c_res_by_image["class"] = c
             c_res_by_image = c_res_by_image[['imageName', 'GT', 'TP', 'FP', 'FN', 'MCE', "class"]]
-            res_by_image = res_by_image.append(c_res_by_image)
+            res_by_image = pd.concat([res_by_image, c_res_by_image])
                 
             # compute precision, recall and average precision
             acc_FP = np.cumsum(FP)

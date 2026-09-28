@@ -302,7 +302,8 @@ def main():
     os.makedirs(dets_temp_dir, exist_ok=True)
     
     # write out detection bounding boxes in each image in separate files
-    dets_eval.groupby("img_id").apply(write_detections_per_img, det_subdir = dets_temp_dir)
+    for _, img_dets in dets_eval.groupby("img_id"):
+        write_detections_per_img(img_dets, det_subdir = dets_temp_dir)
     
     
     

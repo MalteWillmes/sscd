@@ -529,8 +529,7 @@ def detect(
     if dets_save_apart:
         det_subdir = os.path.join(det_dir, "dets_img_id")
         os.makedirs(det_subdir, exist_ok=True)
-        all_detections.groupby("img_id").apply(
-            write_detections_per_img, det_subdir=det_subdir
-        )
+        for _, img_dets in all_detections.groupby("img_id"):
+            write_detections_per_img(img_dets, det_subdir=det_subdir)
 
     return all_detections

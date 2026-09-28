@@ -56,7 +56,7 @@ DARKNET_WEIGHTS_FILE = DARKNET_WEIGHTS_DIR / "yolov3.weights"
 def fetch_weights():
     """Download and extract the trained YOLO checkpoints."""
     if all(s.exists() for s in WEIGHTS_SENTINELS):
-        print("Trained YOLO weights already present — skipping download.")
+        print("Trained YOLO weights already present - skipping download.")
         return
 
     print("Downloading trained YOLO checkpoints (~790 MB)...")
@@ -83,7 +83,7 @@ def fetch_weights():
 def fetch_training_data():
     """Download and extract the training example dataset."""
     if TRAINING_DATA_DIR.exists():
-        print("Training example data already present — skipping download.")
+        print("Training example data already present - skipping download.")
         return
 
     print("Downloading training example data (~1.3 GB)...")
@@ -101,7 +101,7 @@ def fetch_training_data():
 def fetch_darknet_weights():
     """Download the pre-trained Darknet-53 weights for transfer learning."""
     if DARKNET_WEIGHTS_FILE.exists():
-        print("Darknet weights already present — skipping download.")
+        print("Darknet weights already present - skipping download.")
         return
 
     print("Downloading pre-trained Darknet-53 weights (~248 MB)...")

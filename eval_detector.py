@@ -14,15 +14,16 @@ Brief pipeline description:
     (v) delete generated txt files
     
     
-Usage:
+Usage (from the repository root):
 
-%run eval_detector.py \
-    --img_dir \
-    --ann_dir \
-    --dets_csv \
-    --outputs_dir \
-    --dets_vs_anns_plots \
-    --sep_plots
+uv run python eval_detector.py \
+    --img_dir "./data/eval_example/imgs/" \
+    --anns_dir "./data/eval_example/anns/" \
+    --dets_csv "./data/eval_example/detections.csv" \
+    --iou_threshould 0.5 \
+    --output_dir "./SSCD_temp_outputs" \
+    --plot_dets_vs_anns True \
+    --sep_plots True
 """
 
 # import built-in modules
@@ -401,7 +402,6 @@ def main():
     
 # ------------------------------------------------------------------------------
 if __name__ == "__main__":
-    __spec__ = None
     main()
     
     

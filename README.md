@@ -36,16 +36,6 @@ This step creates a virtual environment for the SSCD tool, with all the required
 uv sync --dev
 ```
 
-##### Register the Jupyter kernel
-
-Add the SSCD environment to Jupyter notebook:
-```bash
-uv run ipython kernel install --user --env VIRTUAL_ENV $(pwd)/.venv --name=sscd
-```
-This registers this project environment as a kernel `sscd`, which is an isolated environment you can use to run your code.
-If the kernel is not available in the list of kernels, refresh the page and it should appear.
-
-
 #### 3. Download YOLOv3 weights for focus and circuli detectors
 
   Run the following command to download and extract the trained weights (~790 MB) into `data/yoloV3_checkpoints/`:
@@ -53,6 +43,9 @@ If the kernel is not available in the list of kernels, refresh the page and it s
   ```bash
   uv run sscd-fetch weights
   ```
+
+  (If your system blocks the `sscd-fetch` launcher, use `uv run python -m sscd_libs.fetch weights` instead.
+  `run_example.py` below also downloads the weights automatically if they are missing.)
 
   That's it: installation (hopefully) done!
 
@@ -73,30 +66,20 @@ uv add requests
 
 ## How to run SSCD
 
-Two alternatives to run SSCD:
+### Quick start: run the bundled example
 
-### Via a Jupyter Notebook (**recommended**)
+  ```bash
+  uv run python run_example.py
+  ```
 
-  - Launch Jupyter lab:
+  This downloads the weights if needed, runs the full pipeline on the three scales in
+  `data/example_scales`, and writes the outputs to `SSCD_temp_outputs/example/`.
+  Add `--eval` to also run the evaluation example (see below), or `--no_plots` to skip
+  the detection plot images.
 
-    ```bash
-    uv run --with jupyter jupyter lab
-    ```
+### On your own scale images
 
-  - On Jupyter's File Browser, open `SSCD/docs/SSCD detection example usage.ipynb` and follow the instructions
-  - **Alternatively**, open a new Notebook with `sscd` as its Kernel, copy-paste the following code to a cell
-    ```
-    %run sscd.py \
-       --img_dir "./data/example_scales"\
-       --output_dir "./SSCD_temp_outputs"\
-       --transect_angles 0 45 90 135 180 \
-       --plot_dets True
-    ```
-    and hit `Ctrl+Enter` to run.
-
-### Via the command line
-
-  Run the following:
+  Run from the repository root:
 
   ```bash
   uv run python sscd.py \
@@ -105,6 +88,24 @@ Two alternatives to run SSCD:
     --transect_angles 0 45 90 135 180  \
     --plot_dets True
   ```
+
+  Note that `--output_dir` is emptied at the start of every run.
+
+### Performance and memory
+
+  A run needs roughly 1.2 GB of RAM and, on a typical laptop CPU, well under a minute
+  per scale. If runs are dramatically slower than that (minutes per scale), try disabling
+  TensorFlow's oneDNN optimizations, which can be pathologically slow on some Intel
+  hybrid laptop CPUs (e.g. 12th-gen "U" series). Results are unaffected:
+
+  ```bash
+  # Windows (new terminals only)
+  setx TF_ENABLE_ONEDNN_OPTS 0
+  # Linux/macOS
+  export TF_ENABLE_ONEDNN_OPTS=0
+  ```
+
+  Leave oneDNN enabled on machines where it performs well (most servers and desktops).
 
 
 ### `sscd.py` inputs
@@ -186,19 +187,7 @@ Core computational tasks were adapted from [this project][4], where background i
 
 A more detailed guide for evaluating the performance of SSCD's detectors is available [here][6].
 
-The following code chunk exemplifies the evaluation of the circulus detector in a jupyter session (under the sscd kernel):
-```
-%run eval_detector.py \
-    --img_dir "./data/eval_example/imgs/" \
-    --anns_dir "./data/eval_example/anns/" \
-    --dets_csv "./data/eval_example/detections.csv"\
-    --iou_threshould 0.5 \
-    --output_dir "./SSCD_temp_outputs"\
-    --plot_dets_vs_anns True \
-    --sep_plots True
-```
-
-Running the same case usage via the command line:
+The following example evaluates the circulus detector on the bundled annotated transects (`uv run python run_example.py --eval` runs the same thing):
 
 ```bash
 uv run python eval_detector.py \
@@ -281,7 +270,7 @@ Each detector is a [YOLOv3][10] (*You Only Look Once*) model trained for its spe
 
 This [page][8] provides details on how to set up a workstation for (re)training the SSCD's detectors.
 
-*[Training protocol][11] currently being written up.*
+*The training protocol (previously a Jupyter notebook, `docs/SSCD Training Protocol.ipynb`) has been removed from this fork; it remains available in the git history. The training code path has not yet been updated for TensorFlow 2.16+/Keras 3.*
 
 
 ## Development
@@ -329,4 +318,3 @@ pre-commit run --all-files
 [8]: /docs/sscd_setup_for_training.md
 [9]: https://github.com/jobevers/diagonal-crop
 [10]: https://arxiv.org/pdf/1804.02767.pdf
-[11]: /docs/SSCD%20Training%20Protocol.ipynb

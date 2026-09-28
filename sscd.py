@@ -14,14 +14,14 @@ Brief pipeline description:
     (v) Calculate circuli spacings in each transect
     
     
-Usage:
+Usage (from the repository root):
 
-%run sscd.py \
-   --img_dir "./data/example_scales"\
-   --output_dir "C:/SSCD_temp_outputs"\
+uv run python sscd.py \
+   --img_dir "./data/example_scales" \
+   --output_dir "./SSCD_temp_outputs" \
    --transect_angles 0 45 90 135 180 \
-   --dets_separate_files False\
-   --draw_detections True\
+   --dets_separate_files False \
+   --plot_dets True \
    --transect_max_boxes 200
 """
 
@@ -489,7 +489,6 @@ def main():
 
 # ------------------------------------------------------------------------------
 if __name__ == "__main__":
-    __spec__ = None
     main()
     
     

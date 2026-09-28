@@ -107,28 +107,9 @@ An important caveat in the evaluation process is the quality of the annotation d
     - `Ctrl + u` - load images from a directory
     - `Ctrl + r` - Set directory comprising the annotation files
 
-### 3. Run evaluation (in a jupyter session)
+### 3. Run evaluation
 
-- Launch Jupyter Lab (with the sscd kernel) from the SSCD directory:
-
-  ```bash
-  uv run --with jupyter jupyter lab
-  ```
-
-- Open a new Notebook with the `sscd` kernel and run the following code:
-
-  ```python
-  %run eval_detector.py \
-      --img_dir "<some_path>/eval_circuli_detector/imgs" \
-      --anns_dir "<some_path>/eval_circuli_detector/anns" \
-      --dets_csv "<some_path>/eval_circuli_detector/detections.csv" \
-      --iou_threshould 0.5 \
-      --output_dir "<some_path>/eval_circuli_detector/" \
-      --plot_dets_vs_anns True \
-      --sep_plots True
-  ```
-
-Alternatively, you can run from the command line:
+From the SSCD directory, run:
 
 ```bash
 uv run python eval_detector.py \

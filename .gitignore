@@ -182,8 +182,6 @@ data/training_example_data.zip
 data/transfer_learning/
 data/focus_detection/
 
-docs/SSCD testing.ipynb
-docs/SSCD detection example usage.ipynb
 docs/comments and ideas.md
 
 SSCD_temp_outputs/

@@ -57,7 +57,7 @@ def DarknetConv(x, filters, size, strides=1, batch_norm=True):
                use_bias=not batch_norm, kernel_regularizer=l2(0.0005))(x)
     if batch_norm:
         x = BatchNormalization()(x)
-        x = LeakyReLU(alpha=0.1)(x)
+        x = LeakyReLU(negative_slope=0.1)(x)
     return x
 
 

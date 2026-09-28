@@ -22,7 +22,16 @@ import matplotlib.patches as patches
 from tqdm import tqdm
 import numpy as np
 import pandas as pd
-import tensorflow as tf
+
+# Quieten TensorFlow's start-up noise: C++ INFO lines (CPU feature notices) and
+# Python-side notices such as "GPU support is not available on native Windows"
+# or Keras-internal deprecations. Warnings and errors from TensorFlow's C++
+# core still show. Set TF_CPP_MIN_LOG_LEVEL=0 to see everything.
+os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "1")
+import tensorflow as tf  # noqa: E402 - must come after the log-level setting
+
+if os.environ["TF_CPP_MIN_LOG_LEVEL"] != "0":
+    tf.get_logger().setLevel("ERROR")
 
 
 # import local modules
@@ -508,9 +517,21 @@ def detect(
 
     ## end of loop
 
-    # ignore_index: a unique index keeps later groupby/assign steps aligned
-    if img_detections_dfs:
-        all_detections = pd.concat(img_detections_dfs, ignore_index=True)
+    # ignore_index: a unique index keeps later groupby/assign steps aligned.
+    # Images without detections contribute only their img_id (the other columns
+    # come out empty), rather than an all-NaN row: concatenating all-NA frames is
+    # deprecated in pandas and would change column dtypes in future versions.
+    has_dets = [df["score"].notna().any() for df in img_detections_dfs]
+    if any(has_dets):
+        columns = img_detections_dfs[has_dets.index(True)].columns
+        all_detections = pd.concat(
+            [df if dets else df[["img_id"]] for df, dets in zip(img_detections_dfs, has_dets, strict=True)],
+            ignore_index=True,
+        )[columns]
+    elif img_detections_dfs:
+        all_detections = pd.concat(
+            [df[["img_id"]] for df in img_detections_dfs], ignore_index=True
+        ).reindex(columns=img_detections_dfs[0].columns)
     else:
         all_detections = pd.DataFrame()
 

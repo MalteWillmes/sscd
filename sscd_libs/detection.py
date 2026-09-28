@@ -28,6 +28,7 @@ import tensorflow as tf
 # import local modules
 from yolov3_tf2.models import YoloV3
 from yolov3_tf2.dataset import transform_images
+from yolov3_tf2.utils import load_keras2_checkpoint
 
 from sscd_libs.helpers import unpack_for_string
 
@@ -432,10 +433,10 @@ def detect(
     )
 
     # --- load weights
-    # Use tf.train.Checkpoint directly: Keras 3 (shipped with TF 2.16+) dropped
-    # support for loading TF2 SavedModel-style checkpoints via model.load_weights().
-    tf.train.Checkpoint(yolo).read(weights).expect_partial()
-    logger.info("weights loaded")
+    # Keras 3 (TF 2.16+) can't load these Keras 2 checkpoints via load_weights(),
+    # and tf.train.Checkpoint(...).expect_partial() silently restores nothing.
+    n_vars = load_keras2_checkpoint(yolo, weights)
+    logger.info(f"weights loaded ({n_vars} variables)")
 
     # --- load object classes
     class_names = [c.strip() for c in open(classes_file).readlines()]

@@ -75,6 +75,49 @@ def load_darknet_weights(model, weights_file, tiny=False):
     wf.close()
 
 
+def _keras2_checkpoint_keys(model, prefix=''):
+    # Keras 2 tracked each layer that owns weights as `layer_with_weights-N`
+    # (N counting only weighted layers, in model.layers order), recursing into
+    # nested models, with each variable stored under its attribute name.
+    idx = 0
+    for layer in model.layers:
+        if not layer.weights:
+            continue
+        path = '{}layer_with_weights-{}/'.format(prefix, idx)
+        idx += 1
+        if isinstance(layer, tf.keras.Model):
+            yield from _keras2_checkpoint_keys(layer, path)
+        else:
+            for var in layer.weights:
+                yield '{}{}/.ATTRIBUTES/VARIABLE_VALUE'.format(path, var.name), var
+
+
+def load_keras2_checkpoint(model, checkpoint_path):
+    """Load a TF checkpoint written by Keras 2 `model.save_weights()` into a
+    Keras 3 model.
+
+    Keras 3 can't read these checkpoints via `model.load_weights()`, and
+    `tf.train.Checkpoint(model).read(...).expect_partial()` silently restores
+    nothing because Keras 3 tracks layers under different names. Map every
+    variable explicitly and fail loudly if any is missing or mis-shaped.
+    """
+    reader = tf.train.load_checkpoint(checkpoint_path)
+    shapes = reader.get_variable_to_shape_map()
+    pairs = list(_keras2_checkpoint_keys(model))
+    missing = [key for key, _ in pairs if key not in shapes]
+    if missing:
+        raise ValueError('{} of {} model variables not found in checkpoint {} '
+                         '(first: {})'.format(len(missing), len(pairs),
+                                              checkpoint_path, missing[0]))
+    for key, var in pairs:
+        value = reader.get_tensor(key)
+        if tuple(value.shape) != tuple(var.shape):
+            raise ValueError('shape mismatch for {}: checkpoint {} vs model {}'
+                             .format(key, value.shape, tuple(var.shape)))
+        var.assign(value)
+    return len(pairs)
+
+
 def broadcast_iou(box_1, box_2):
     # box_1: (..., (x1, y1, x2, y2))
     # box_2: (N, (x1, y1, x2, y2))

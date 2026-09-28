@@ -27,7 +27,7 @@ def run(script, *args):
     # releases all TensorFlow memory when it finishes.
     cmd = [sys.executable, script, *args]
     print("\n>>> " + " ".join(cmd) + "\n", flush=True)
-    subprocess.run(cmd, cwd=REPO_DIR, check=True)
+    subprocess.run(cmd, cwd=REPO_DIR, check=True)  # noqa: S603 - fixed scripts, no shell
 
 
 def main():

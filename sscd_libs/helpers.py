@@ -154,7 +154,8 @@ def download_url(url, save_filepath, chunk_size=8192):
     requests.HTTPError
         If the server returns a non-2xx HTTP status code.
     """
-    r = requests.get(url, stream=True)
+    # timeout (seconds) applies to connecting and to each read, not the whole download
+    r = requests.get(url, stream=True, timeout=60)
     r.raise_for_status()
 
     content_type = r.headers.get("content-type", "")

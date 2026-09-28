@@ -106,7 +106,7 @@ def detections_as_df(detections_tf, img_orig_wh, img_id, class_names):
     if len(detections_df) == 0:
         det_colnames = detections_df.columns.tolist()
         no_dets_fill = [img_id] + [np.nan] * (len(det_colnames) - 1)
-        detections_df = pd.DataFrame(dict(zip(det_colnames, no_dets_fill)), index=[0])
+        detections_df = pd.DataFrame(dict(zip(det_colnames, no_dets_fill, strict=True)), index=[0])
 
     return detections_df
 
@@ -258,7 +258,7 @@ def plot_detections(
         ann_bbxs_rects = []
         ann_bbxs_dots = []
 
-        for index, row in anns.iterrows():
+        for _, row in anns.iterrows():
             ann_bbx_centre = (row["xcentre"], row["ycentre"])
             ann_bbxs_centres.append(ann_bbx_centre)
 

@@ -10,7 +10,6 @@ Module for utility functions dealing with data/image preparation and processing
 
 # import standard libraries
 import os
-import glob
 from pathlib import Path
 import collections
 import concurrent.futures
@@ -386,7 +385,7 @@ def pascal_to_evaltxt(ann_dir, ann_id, out_dir):
     bboxes = []
     
     # load the contents of the annotations file into an ElementTree
-    tree = ElementTree.parse(ann_filepath)
+    tree = ElementTree.parse(ann_filepath)  # noqa: S314 - the user's own local annotation files
     
     for obj in tree.iter("object"):
         

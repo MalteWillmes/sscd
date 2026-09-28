@@ -9,10 +9,8 @@ Usage:
 """
 
 import argparse
-import os
 import sys
 import zipfile
-from pathlib import Path
 
 from sscd_libs.helpers import REPO_DIR, download_url
 
@@ -76,7 +74,7 @@ def fetch_weights():
     if missing:
         print(
             "WARNING: extraction completed but the following expected files are "
-            f"missing:\n  " + "\n  ".join(missing),
+            "missing:\n  " + "\n  ".join(missing),
             file=sys.stderr,
         )
     else:

@@ -29,12 +29,13 @@ import logging
 from obj_det_metrics.lib.utils import (
     BBType,
     BBFormat,
-    CoordinatesType
+    CoordinatesType,
+    MethodAveragePrecision,
     )
 
 from obj_det_metrics.lib.BoundingBoxes import BoundingBoxes
 from obj_det_metrics.lib.BoundingBox import BoundingBox
-from obj_det_metrics.lib.Evaluator import *
+from obj_det_metrics.lib.Evaluator import Evaluator
 
 logger = logging.getLogger(__name__)
 

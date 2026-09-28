@@ -332,7 +332,7 @@ def main():
         dets_vs_anns_img_dir = os.path.join(args["output_dir"], "dets_vs_anns_plots")
         os.makedirs(dets_vs_anns_img_dir, exist_ok=True)
 
-        for img_filepath, img_id in tqdm(zip(img_filepaths, img_ids), total = len(img_filepaths), 
+        for img_filepath, img_id in tqdm(zip(img_filepaths, img_ids, strict=True), total = len(img_filepaths), 
                                          ascii=True, ncols=120):
                 
             # read-in original img as a array of pixel intensities

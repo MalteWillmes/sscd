@@ -4,7 +4,7 @@ import pandas as pd
 import pytest
 from PIL import Image
 
-from sscd_libs.focus_retry import TRAINING_ASPECT, pad_to_training_aspect, retry_focus
+from sscd_libs.focus_retry import TRAINING_ASPECT, best_focus_box, pad_to_training_aspect, retry_focus
 
 
 @pytest.mark.parametrize("size", [(3840, 2160), (1000, 1500), (3840, 2748)])
@@ -41,3 +41,12 @@ def test_boxes_map_back_and_passes_are_flagged(tmp_path):
     assert out.loc["b", "focus_method"] == "low_threshold" and out.loc["b", "score"] == 0.2
     assert [t for _, t in calls] == [None, 0.1]
     assert sorted(p.stem for p in (tmp_path / "work" / "low_threshold").iterdir()) == ["b", "c"]
+
+
+def test_best_focus_box_keeps_most_confident_and_counts_boxes():
+    dets = pd.DataFrame({"img_id": ["b", "a", "a", "c"], "score": [0.9, 0.6, 0.8, None],
+                         "xmin": [1, 2, 3, None]})
+    best = best_focus_box(dets)
+    assert best["img_id"].tolist() == ["b", "a"]          # input order kept, no-detection image dropped
+    assert best["score"].tolist() == [0.9, 0.8]
+    assert best["n_focus_boxes"].tolist() == [1, 2]

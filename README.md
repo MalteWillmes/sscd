@@ -166,10 +166,10 @@ uv add requests
   transect image). All distances are in pixels of the original scale image.
 
   `results/focus.csv` columns: `scale_id`, `class_name`, `score`, `focus_method` (see below),
-  `xmin`/`ymin`/`xmax`/`ymax` (focus box) and `x_px`/`y_px` (focus centre), for scales where a
+  `n_focus_boxes` (see below), `xmin`/`ymin`/`xmax`/`ymax` (focus box) and `x_px`/`y_px` (focus centre), for scales where a
   focus was found.
   `results/scales_summary.csv` lists every input scale: `focus_found`, `focus_score`,
-  `focus_method`, `n_transects`, `total_n_circuli` (all transects together), `mean_n_circuli` (per transect with
+  `focus_method`, `n_focus_boxes`, `n_transects`, `total_n_circuli` (all transects together), `mean_n_circuli` (per transect with
   at least one circulus; transects without circuli are not counted), `median_spacing_px` and
   `transects_without_circuli` (angles).
 
@@ -189,6 +189,11 @@ uv add requests
   3840 x 2160 scales, this found the focus in 7 of the 16 scales the normal pass missed (4 padded,
   3 with the lower threshold); on the other 94 scales the detector produced no box away from the
   true focus even at a threshold of 0.05.
+
+  **More than one focus.** If the detector finds more than one focus box in an image, the most
+  confident box is used and the scale is flagged: `n_focus_boxes` > 1 and a warning listing
+  those scales. All boxes are drawn in `qc/focus_plots`, so check whether the image contains
+  several scales or a false detection.
 
   **Duplicate images.** Identical image files in the input folder (e.g. `scale.tif` and
   `scale (1).tif` from copying a file twice) would be processed - and counted - twice. The web

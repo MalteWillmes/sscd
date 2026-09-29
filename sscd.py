@@ -53,7 +53,7 @@ from sscd_libs.runcontrol import RunControl, RunSlot, StopRequested
 from sscd_libs.settings import load_settings
 
 from sscd_libs.detection import detect, plot_detections
-from sscd_libs.focus_retry import retry_focus
+from sscd_libs.focus_retry import best_focus_box, retry_focus
 
 from sscd_libs.data_processing import (
     images_tiff_to_jpeg,
@@ -87,26 +87,18 @@ def focus_checks(focus_dets_df):
     # issues counter
     issues = 0
     
-    # Raise error if multiple focus found in one image
-    n_focus_image = focus_dets_df["img_id"].value_counts()
-    multiple_focus = n_focus_image[n_focus_image > 1]
-    if len(multiple_focus) > 0:
-        
-        mult_focus_img_id = multiple_focus.index.values.tolist()
+    # Warning when the detector found more than one focus box in an image (only the most
+    # confident box is used; the image may contain several scales or a false detection)
+    multiple = focus_dets_df[focus_dets_df["n_focus_boxes"] > 1]
+    if len(multiple) > 0:
+        logger.warning("... More than one focus detected in %d image(s) - only the most confident box is "
+                       "used. Check them (n_focus_boxes in focus.csv; all boxes are drawn in "
+                       "qc/focus_plots). Do the images contain several scales?\n\n\t%s\n",
+                       len(multiple), unpack_for_string(
+                           f"{r.img_id} ({r.n_focus_boxes} boxes, kept score {r.score:.2f})"
+                           for r in multiple.itertuples()))
+        issues += 1
 
-        logger.error("... Multiple focus detected in the following image(s): " 
-                        f"\n\n\t{unpack_for_string(mult_focus_img_id)}"
-                        "\n\n\tDo images contain multiple scales? "
-                        "Currently, system only allows for one scale per image " 
-                        "\n\tEnding run prematurely.\n\n")
-        
-        # Stop logging process
-        logging.shutdown()
-            
-        raise RuntimeError("Multiple focus in image")
-        
-        
-    
     # Warning when detection boxes cover more than a given proportion of the image
     det_prop_tolerance = 0.2  # 1/5 of the image (arbitrary at this stage. May need tunning with usage)
     large_dets = focus_dets_df[["img_id", "detection_nr", "score",
@@ -219,7 +211,7 @@ def circuli_checks(circuli_dets_df, circuli_max_boxes):
 # ------------------------------------------------------------------------------
 CIRCULI_COLUMNS = ["scale_id", "transect_id", "angle_deg", "circulus_nr", "class_name", "score",
                    "spacing_px", "dist_from_focus_px", "x_px", "y_px", "xmin", "ymin", "xmax", "ymax"]
-FOCUS_COLUMNS = ["scale_id", "class_name", "score", "focus_method", "xmin", "ymin", "xmax", "ymax", "x_px", "y_px"]
+FOCUS_COLUMNS = ["scale_id", "class_name", "score", "focus_method", "n_focus_boxes", "xmin", "ymin", "xmax", "ymax", "x_px", "y_px"]
 
 FOCUS_MODEL = {"input_width": 1376, "input_height": 1376, "yolo_score_threshold": 0.5, "yolo_max_boxes": 100}
 CIRCULI_MODEL = {"input_width": 3904, "input_height": 64, "yolo_score_threshold": 0.3}
@@ -231,6 +223,7 @@ def scales_summary(scale_ids, focus, transect_ids, circuli):
                         if len(transect_ids) else (pd.Series(dtype=str), pd.Series(dtype=int)))
     focus_score = dict(zip(focus["scale_id"], focus["score"], strict=True))
     focus_method = dict(zip(focus["scale_id"], focus["focus_method"], strict=True))
+    n_focus_boxes = dict(zip(focus["scale_id"], focus["n_focus_boxes"], strict=True))
     rows = []
     for scale_id in scale_ids:
         c = circuli[circuli["scale_id"] == scale_id]
@@ -242,6 +235,8 @@ def scales_summary(scale_ids, focus, transect_ids, circuli):
             "focus_score": focus_score.get(scale_id),
             # standard, or found in the second pass: padded / low_threshold
             "focus_method": focus_method.get(scale_id),
+            # boxes found by the detector; > 1: only the most confident one is used
+            "n_focus_boxes": n_focus_boxes.get(scale_id),
             "n_transects": len(angles),
             "total_n_circuli": len(c),
             # per transect with at least one circulus (transects without circuli are not
@@ -327,7 +322,8 @@ def run_pipeline(args, paths, control):
     logger.info("Finished focus detection")
 
     scale_ids = focus_dets["img_id"].tolist()   # every scale, with or without focus
-    focus_found = focus_dets.dropna(subset=["score"]).assign(focus_method="standard")
+    # the most confident box per scale (more than one is flagged by focus_checks)
+    focus_found = best_focus_box(focus_dets).assign(focus_method="standard")
     missed = [s for s in scale_ids if s not in set(focus_found["img_id"])]
 
     ## --- 2b. Second pass, only for scales without a focus: padded to the training

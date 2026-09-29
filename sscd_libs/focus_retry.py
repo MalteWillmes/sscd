@@ -9,7 +9,7 @@ Second focus-detection pass, only for scales where the normal pass found no focu
   B. low_threshold: the best box above a lower score threshold, for scales still
                     without a focus.
 
-Each pass keeps only the single most confident box per scale. Scales rescued this way
+Each pass keeps only the single most confident box per scale (as the normal pass). Scales rescued this way
 are flagged (focus_method) so they can be checked or excluded.
 """
 
@@ -48,10 +48,17 @@ def pad_to_training_aspect(im):
     return padded, (dx, dy)
 
 
-def _best_box(dets):
-    """The most confident detection per image."""
+def best_focus_box(dets):
+    """
+    The most confident detection per image (images without detections are dropped),
+    in the original image order, with a column n_focus_boxes: the number of boxes the
+    detector found in that image (more than one: check the scale).
+    """
     dets = dets.dropna(subset=["score"])
-    return dets.sort_values("score", ascending=False).groupby("img_id").head(1)
+    order = {img_id: i for i, img_id in enumerate(dict.fromkeys(dets["img_id"]))}
+    n_boxes = dets["img_id"].map(dets["img_id"].value_counts())
+    best = dets.assign(n_focus_boxes=n_boxes).sort_values("score", ascending=False).groupby("img_id").head(1)
+    return best.sort_values("img_id", key=lambda s: s.map(order)).reset_index(drop=True)
 
 
 def retry_focus(scale_ids, scales_dir, work_dir, detect_focus, low_threshold, progress=None):
@@ -84,7 +91,7 @@ def retry_focus(scale_ids, scales_dir, work_dir, detect_focus, low_threshold, pr
             sizes[scale_id] = im.size
             padded, offsets[scale_id] = pad_to_training_aspect(im)
         padded.save(padded_dir / f"{scale_id}.jpg", quality=95)
-    found = _best_box(detect_focus(str(padded_dir), str(work_dir / "padded_none"), None, progress))
+    found = best_focus_box(detect_focus(str(padded_dir), str(work_dir / "padded_none"), None, progress))
     if len(found):
         found = found.copy()
         dx = found["img_id"].map(lambda s: offsets[s][0])
@@ -106,7 +113,7 @@ def retry_focus(scale_ids, scales_dir, work_dir, detect_focus, low_threshold, pr
         low_dir.mkdir(parents=True, exist_ok=True)
         for scale_id in remaining:
             shutil.copy(Path(scales_dir) / f"{scale_id}.jpg", low_dir / f"{scale_id}.jpg")
-        found = _best_box(detect_focus(str(low_dir), str(work_dir / "low_threshold_none"), low_threshold, progress))
+        found = best_focus_box(detect_focus(str(low_dir), str(work_dir / "low_threshold_none"), low_threshold, progress))
         if len(found):
             found = found.assign(focus_method="low_threshold")
             rescued.append(found)

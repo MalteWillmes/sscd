@@ -241,7 +241,9 @@ def scales_summary(scale_ids, focus, transect_ids, circuli):
             # counted); empty if there are none
             "mean_n_circuli": (round(len(c) / (len(angles) - len(empty)), 2)
                                if len(angles) > len(empty) else None),
-            "median_spacing_px": round(c["spacing_px"].median(), 2) if len(c) else None,
+            # empty if no spacing exists (e.g. only one circulus per transect)
+            "median_spacing_px": (round(c["spacing_px"].dropna().median(), 2)
+                                  if c["spacing_px"].notna().any() else None),
             "transects_without_circuli": ";".join(str(a) for a in empty),
         })
     return pd.DataFrame(rows)

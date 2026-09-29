@@ -1,0 +1,38 @@
+name: Tests
+
+on:
+  workflow_dispatch:
+  push:
+  pull_request:
+
+permissions: {}
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Install the latest version of uv
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+
+      - name: Install dependencies (incl. the web app)
+        run: uv sync --frozen --dev --extra gui
+
+      # the trained weights (~790 MB) are downloaded once and then restored from the cache
+      - name: Cache trained weights
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: data/yoloV3_checkpoints
+          key: sscd-trained-weights-v1
+
+      - name: Download trained weights
+        run: uv run --frozen python -m sscd_libs.fetch weights
+
+      - name: Run tests
+        run: uv run --frozen python -m pytest -v

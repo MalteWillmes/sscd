@@ -4,7 +4,8 @@ requires = ["setuptools>=68"]
 
 [dependency-groups]
 dev = [
-  "deptry"
+  "deptry",
+  "pytest>=9.1.1"
 ]
 
 [project]
@@ -43,6 +44,12 @@ gui = [
 extend_exclude = ["obj_det_metrics/pascalvoc.py"]
 known_first_party = ["sscd_libs"]
 
+[tool.pytest.ini_options]
+markers = [
+  "slow: runs the detectors (needs the trained weights; skipped without them)"
+]
+testpaths = ["tests"]
+
 [tool.ruff]
 # vendored third-party code (yolov3-tf2, Object-Detection-Metrics) and training tools are
 # kept as written upstream
@@ -53,6 +60,10 @@ fix = true
 # Bug-catching rules only. The code is deliberately not restyled (no ruff-format, no
 # style/modernisation rules) so this fork stays easy to merge with upstream NINAnor/sscd.
 select = ["B", "E9", "F", "S", "W6"]
+
+[tool.ruff.lint.per-file-ignores]
+# asserts are how pytest tests check things; tests start processes on purpose
+"tests/*" = ["S101", "S603"]
 
 [tool.setuptools]
 packages = ["sscd_libs"]

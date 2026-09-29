@@ -79,6 +79,31 @@ def tiff_to_jpg(tiff_input_filepath, jpg_output_filepath):
     
     
 # ------------------------------------------------------------------------------
+def list_input_images(input_imgs_dir):
+    """
+    Scale image files in a directory (.tif/.tiff/.jpg/.jpeg, any case), sorted.
+
+    Raises FileNotFoundError if there are none, and ValueError if two share a
+    file name (ignoring extension), as they would overwrite each other's results.
+    """
+    # extension matched case-insensitively, without glob, so directory names
+    # containing [ ] etc. work too
+    img_input_fpaths = sorted(
+        str(p) for p in Path(input_imgs_dir).iterdir()
+        if p.is_file() and p.suffix.lower() in IMAGE_EXTENSIONS
+        )
+    if len(img_input_fpaths) == 0:
+        raise FileNotFoundError(f"No images of type {', '.join(IMAGE_EXTENSIONS)} found in {input_imgs_dir}")
+
+    stems = collections.Counter(Path(p).stem.lower() for p in img_input_fpaths)
+    duplicates = sorted(stem for stem, n in stems.items() if n > 1)
+    if duplicates:
+        raise ValueError("Several input images share the same file name (ignoring extension): "
+                         + ", ".join(duplicates))
+    return img_input_fpaths
+
+
+# ------------------------------------------------------------------------------
 def images_tiff_to_jpeg(input_imgs_dir, output_imgs_dir):
     
     """
@@ -100,24 +125,7 @@ def images_tiff_to_jpeg(input_imgs_dir, output_imgs_dir):
     
     """
 
-    # --- list image files in input directory (extension matched case-insensitively,
-    # without glob, so directory names containing [ ] etc. work too)
-    img_input_fpaths = sorted(
-        str(p) for p in Path(input_imgs_dir).iterdir()
-        if p.is_file() and p.suffix.lower() in IMAGE_EXTENSIONS
-        )
-        
-    # Raise exception if there are no valid images present in input directory
-    if len(img_input_fpaths) == 0:
-        raise FileNotFoundError(f"No images of type {', '.join(IMAGE_EXTENSIONS)} found in {input_imgs_dir}")
-    
-    # Two inputs with the same name (e.g. a.tif and a.jpg) would overwrite each
-    # other's converted image and results
-    stems = collections.Counter(Path(p).stem.lower() for p in img_input_fpaths)
-    duplicates = sorted(stem for stem, n in stems.items() if n > 1)
-    if duplicates:
-        raise ValueError("Several input images share the same file name (ignoring extension): "
-                         + ", ".join(duplicates))
+    img_input_fpaths = list_input_images(input_imgs_dir)
         
     # --- generate output filepaths for converted images
     img_output_fpaths = [os.path.join(output_imgs_dir, Path(name).stem + '.jpg') 
@@ -305,7 +313,7 @@ def get_transect_length(focus_centre, transect_rad, im_width, im_height):
 TransectGeometry = collections.namedtuple("TransectGeometry", ["base", "angle_rad", "width", "length"])
 
 
-def transect_geometry(focus_bbox, angle_deg, im_width, im_height):
+def transect_geometry(focus_bbox, angle_deg, im_width=None, im_height=None):
     """
     Geometry of the radial transect at `angle_deg` from a detected focus.
 
@@ -318,21 +326,23 @@ def transect_geometry(focus_bbox, angle_deg, im_width, im_height):
         focus_bbox: dict-like with xmin, ymin, xmax, ymax of the focus (pixels)
         angle_deg: transect angle in degrees, counter-clockwise from the image's
             positive x axis (0 = right, 90 = up)
-        im_width, im_height: scale image size in pixels
+        im_width, im_height: scale image size in pixels (only needed for the length)
 
     Returns
     -------
         TransectGeometry(base, angle_rad, width, length): base is the (x, y)
         corner of the transect next to the focus (the transect image's top-left
         pixel), width is the transect's height across (pixels) and length its
-        extent from the focus to the image border (pixels).
+        extent from the focus to the image border (pixels; None without image size).
     """
     xmin, ymin, xmax, ymax = (focus_bbox[k] for k in ("xmin", "ymin", "xmax", "ymax"))
     focus_centre = ((xmin + xmax)/2, (ymin + ymax)/2)
     width = min(xmax - xmin, ymax - ymin)/2
     angle_rad = math.radians(angle_deg)
     base = get_transect_base_coords(focus_centre, angle_rad, width)
-    length = get_transect_length(focus_centre, angle_rad, im_width, im_height)
+    length = None
+    if im_width is not None and im_height is not None:
+        length = get_transect_length(focus_centre, angle_rad, im_width, im_height)
     return TransectGeometry(base, angle_rad, width, length)
 
 

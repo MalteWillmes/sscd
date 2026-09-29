@@ -31,26 +31,26 @@
             "justMyCode": true
         },
         {
-            "name": "SSCD: overlay detections of a run",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceFolder}/overlay_detections.py",
-            "args": ["--output_dir", "${input:runDir}"],
-            "cwd": "${workspaceFolder}",
-            "console": "integratedTerminal",
-            "justMyCode": true
-        },
-        {
             "name": "SSCD: run on a folder of scales",
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/sscd.py",
             "args": [
                 "--img_dir", "${input:imgDir}",
-                "--output_dir", "${input:outputDir}",
+                "--run_name", "${input:runName}",
                 "--transect_angles", "0", "45", "90", "135", "180",
                 "--plot_dets", "True"
             ],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "SSCD: overlay detections of the latest run",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/overlay_detections.py",
+            "args": ["--latest"],
             "cwd": "${workspaceFolder}",
             "console": "integratedTerminal",
             "justMyCode": true
@@ -58,22 +58,16 @@
     ],
     "inputs": [
         {
-            "id": "runDir",
-            "type": "promptString",
-            "description": "Output folder of a finished sscd.py run",
-            "default": "${workspaceFolder}/SSCD_temp_outputs/example"
-        },
-        {
             "id": "imgDir",
             "type": "promptString",
-            "description": "Folder with scale images (.tif/.jpg)",
+            "description": "Folder with scale images (.tif/.jpg) - can be anywhere",
             "default": "${workspaceFolder}/data/example_scales"
         },
         {
-            "id": "outputDir",
+            "id": "runName",
             "type": "promptString",
-            "description": "Output folder (new/empty, or a previous SSCD output - it is emptied first)",
-            "default": "${workspaceFolder}/SSCD_temp_outputs/my_run"
+            "description": "Name for this run (optional, appended to the dated run folder)",
+            "default": ""
         }
     ]
 }

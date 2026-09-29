@@ -48,7 +48,7 @@ An important caveat in the evaluation process is the quality of the annotation d
     2. *LabelImg* has been correctly installed.
 
 
-  - During the detection step, jpg images of scales and transects used in detection are stored in the subdirectory `<detections_output_dir>\jpegs`.
+  - During the detection step, jpg images of scales and transects used in detection are stored in the run folder's `work/scales` and `work/transects` subdirectories (`<output root>/runs/<run>/work/...`, see the [README](../README.md#where-results-are-saved)).
 
   - The example described here refers to the evaluation of the circulus detector.
 
@@ -59,11 +59,11 @@ An important caveat in the evaluation process is the quality of the annotation d
 
 - Create a main directory to comprise the files required for the evaluation process (e.g. `<some_path>/eval_circuli_detector`)
 
-- Select and copy the images to be used in the evaluation from the directory containing the transect images generated during detection (`<detections_output_dir>/jpegs/transects`) to a dedicated subdirectory (e.g. `<some_path>/eval_circuli_detector/imgs`).
+- Select and copy the images to be used in the evaluation from the directory containing the transect images generated during detection (`<run folder>/work/transects`) to a dedicated subdirectory (e.g. `<some_path>/eval_circuli_detector/imgs`).
 
 - Create a new subdirectory to take the annotation files (e.g. `<some_path>/eval_circuli_detector/anns`)
 
-- Optionally, for easier reference, copy the circuli detection data (`<detections_output_dir>/detections/circuli/detections.csv`) to the main directory created above (i.e. `<some_path>/eval_circuli_detector/detections.csv`)
+- The detections to evaluate are the run's `<run folder>/results/circuli.csv` (for the focus detector: `results/focus.csv`); it can be passed to `--dets_csv` directly. Only the images in the `imgs` subdirectory are evaluated.
 
 
 ### 2. Label the images
@@ -115,9 +115,9 @@ From the SSCD directory, run:
 uv run python eval_detector.py \
     --img_dir "<some_path>/eval_circuli_detector/imgs" \
     --anns_dir "<some_path>/eval_circuli_detector/anns" \
-    --dets_csv "<some_path>/eval_circuli_detector/detections.csv" \
+    --dets_csv "<run folder>/results/circuli.csv" \
     --iou_threshould 0.5 \
-    --output_dir "<some_path>/eval_circuli_detector/eval_outputs" \
+    --eval_name "circuli-2024-check" \
     --plot_dets_vs_anns True \
     --sep_plots True
 ```

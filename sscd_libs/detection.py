@@ -369,63 +369,54 @@ def write_detections_per_img(x, det_subdir):
 # ------------------------------------------------------------------------------
 def detect(
     img_dir,
-    det_dir,
-    weights=None,
-    classes_file=None,
-    input_width=None,
-    input_height=None,
+    weights,
+    classes_file,
+    input_width,
+    input_height,
+    no_det_dir,
     yolo_score_threshold=0.5,
     yolo_max_boxes=100,
-    dets_save_apart=False,
-    plot_dets=True,
+    plot_dir=None,
+    per_image_dir=None,
     draw_det_num=False,
     fig_w=25,
     fig_h=20,
 ):
     """
-    TODO
+    Run one YOLOv3 detector on every jpeg in `img_dir`.
 
     Parameters
     ----------
-    img_dir : TYPE
-        DESCRIPTION.
-    det_dir : TYPE
-        DESCRIPTION.
-    weights : TYPE, optional
-        DESCRIPTION. The default is None.
-    classes_file : TYPE, optional
-        DESCRIPTION. The default is None.
-    input_width : TYPE, optional
-        DESCRIPTION. The default is None.
-    input_height : TYPE, optional
-        DESCRIPTION. The default is None.
-    yolo_score_threshold : TYPE, optional
-        DESCRIPTION. The default is 0.5.
-    yolo_max_boxes : TYPE, optional
-        DESCRIPTION. The default is 100.
-    dets_save_apart : TYPE, optional
-        DESCRIPTION. The default is False.
-    plot_dets : TYPE, optional
-        DESCRIPTION. The default is True.
-    draw_det_num : TYPE, optional
-        DESCRIPTION. The default is False.
-    fig_w : TYPE, optional
-        DESCRIPTION. The default is 25.
-    fig_h : TYPE, optional
-        DESCRIPTION. The default is 20.
+    img_dir : str
+        directory with the .jpg images to run the detector on
+    weights : str
+        checkpoint prefix of the trained detector (Keras 2 TF-format checkpoint)
+    classes_file : str
+        file with the detector's class names, one per line
+    input_width, input_height : int
+        model input size images are resized to
+    no_det_dir : str
+        images without any detection are copied here, for visual checks
+    yolo_score_threshold : float
+        minimum detection score
+    yolo_max_boxes : int
+        maximum number of detections per image
+    plot_dir : str, optional
+        if given, an image with the detections drawn on it is saved here per image
+    per_image_dir : str, optional
+        if given, the detections of each image are also written to <img_id>.txt here
+    draw_det_num, fig_w, fig_h :
+        plot options (number the boxes; figure size in inches)
 
     Returns
     -------
-    all_detections : TYPE
-        DESCRIPTION.
-
+    DataFrame with one row per detection (in the processed image's pixel
+    coordinates); an image without detections contributes a single row holding
+    only its img_id.
     """
 
-    # --- File management
-    # Create directory to take detection images, if required
-    if plot_dets:
-        det_img_dir = os.path.join(det_dir, "detection_images")
-        os.makedirs(det_img_dir, exist_ok=True)
+    if plot_dir:
+        os.makedirs(plot_dir, exist_ok=True)
 
     # --- prepare GPU infrastructure (if present)
     physical_devices = tf.config.experimental.list_physical_devices("GPU")
@@ -465,7 +456,6 @@ def detect(
     # per-image detection frames, concatenated once after the loop
     img_detections_dfs = []
     no_detections_img_id = []
-    no_det_img_dir = os.path.join(det_dir, "imgs_with_no_detections")
 
     for img_filepath in tqdm(img_filepaths, ascii=True, ncols=120):
         # read-in original img as a tensor
@@ -497,11 +487,11 @@ def detect(
         img_detections_df = img_detections_df.dropna(subset=["score"])
 
         # if requested, and if detections present, plot images with detections
-        if plot_dets and img_detections_df.shape[0] > 0:
+        if plot_dir and img_detections_df.shape[0] > 0:
             plot_detections(
                 img_orig,
                 img_detections_df,
-                det_img_dir,
+                plot_dir,
                 draw_det_num=draw_det_num,
                 fig_w=fig_w,
                 fig_h=fig_h,
@@ -511,9 +501,9 @@ def detect(
         # (rather than holding every such image in memory until the end)
         if img_detections_df.shape[0] == 0:
             no_detections_img_id.append(img_id)
-            os.makedirs(no_det_img_dir, exist_ok=True)
+            os.makedirs(no_det_dir, exist_ok=True)
             im = Image.fromarray(img_orig.numpy())
-            im.save(os.path.join(no_det_img_dir, img_id + ".jpeg"), "JPEG", quality=95)
+            im.save(os.path.join(no_det_dir, img_id + ".jpeg"), "JPEG", quality=95)
 
     ## end of loop
 
@@ -535,22 +525,18 @@ def detect(
     else:
         all_detections = pd.DataFrame()
 
-    # Write out dataframe with all detections
-    all_detections.to_csv(os.path.join(det_dir, "detections.csv"), index=False)
-
     # Reporting images with no detections
     if len(no_detections_img_id) > 0:
         logger.warning(
             f"Failed to detect {unpack_for_string(class_names)} in {len(no_detections_img_id)} "
             f"image(s):\n\n\t{unpack_for_string(no_detections_img_id)}"
-            f"\n\n\tImage(s) with no detections saved to {no_det_img_dir}\n\n"
+            f"\n\n\tImage(s) with no detections saved to {no_det_dir}\n\n"
         )
 
     # option to save detections separately for each image id
-    if dets_save_apart:
-        det_subdir = os.path.join(det_dir, "dets_img_id")
-        os.makedirs(det_subdir, exist_ok=True)
+    if per_image_dir:
+        os.makedirs(per_image_dir, exist_ok=True)
         for _, img_dets in all_detections.groupby("img_id"):
-            write_detections_per_img(img_dets, det_subdir=det_subdir)
+            write_detections_per_img(img_dets, det_subdir=per_image_dir)
 
     return all_detections

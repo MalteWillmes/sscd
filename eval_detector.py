@@ -14,14 +14,18 @@ Brief pipeline description:
     (v) delete generated txt files
     
     
-Usage (from the repository root):
+Each evaluation is written to a new folder
+<output root>/evaluations/<date>_<time>[_<eval name>] (see sscd_libs/outputs.py).
+--dets_csv takes a run's results/circuli.csv (or results/focus.csv) directly.
+
+Usage:
 
 uv run python eval_detector.py \
     --img_dir "./data/eval_example/imgs/" \
     --anns_dir "./data/eval_example/anns/" \
     --dets_csv "./data/eval_example/detections.csv" \
     --iou_threshould 0.5 \
-    --output_dir "./SSCD_temp_outputs" \
+    --eval_name "example" \
     --plot_dets_vs_anns True \
     --sep_plots True
 """
@@ -31,9 +35,9 @@ import argparse
 import os
 import glob
 import shutil
+from datetime import datetime
 from time import time
 from pathlib import Path
-#import multiprocessing
 import matplotlib.image as mpimg
 
 
@@ -46,10 +50,10 @@ import pandas as pd
 from sscd_libs.helpers import (
     boolean_string,
     clean_output_dir,
-    prepare_output_dir,
     unpack_for_string,
     query_yes_no
     )
+from sscd_libs.outputs import code_version, environment, new_evaluation, write_info
 
 from sscd_libs.data_processing import pascal_to_evaltxt
 from sscd_libs.detection import (
@@ -110,10 +114,23 @@ def main():
         help="IOU threshold for evaluation, determining if a detection is TP or FP"
     )
     args_parser.add_argument(
-        "--output_dir",
-        required=True,
+        "--output_root",
         type=str,
-        help="directory path where evaluation outputs will be stored"
+        default=None,
+        help="root folder for all SSCD outputs (default: $SSCD_OUTPUT_ROOT, else ~/sscd_outputs)"
+    )
+    args_parser.add_argument(
+        "--eval_name",
+        type=str,
+        default=None,
+        help="optional name appended to the evaluation folder, e.g. 'circuli-vs-Bruno'"
+    )
+    args_parser.add_argument(
+        "--eval_dir",
+        type=str,
+        default=None,
+        help="write the evaluation to exactly this (new or empty) folder instead of a new "
+        "dated folder under <output_root>/evaluations"
     )
     args_parser.add_argument(
         "--plot_dets_vs_anns",
@@ -150,25 +167,20 @@ def main():
         if not check(args[arg]):
             raise FileNotFoundError(f"--{arg} not found: {args[arg]}")
 
-    # --- Empty the output directory of results from a previous run
-    prepare_output_dir(
-        args["output_dir"],
-        input_paths=[args["img_dir"], args["anns_dir"], args["dets_csv"]],
-        )
+    # --- New evaluation folder
+    paths = new_evaluation(args["output_root"], args["eval_name"], args["eval_dir"])
 
 
     # --------------------------------- #
     # --      Initiate Logger       --- #
     # --------------------------------- #
 
-    log_filename = os.path.join(args["output_dir"], "log_sscd_evaluation.log")
-    
     # Create console handler
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.INFO)
 
     # Create file handler
-    file_handler = logging.FileHandler(log_filename, mode = 'w')
+    file_handler = logging.FileHandler(paths.log, mode = 'w', encoding='utf-8')
     file_handler.setLevel(logging.INFO)
 
     # Set up logging to file and console
@@ -181,9 +193,19 @@ def main():
     
     global logger
     logger = logging.getLogger(__name__)
-    
-    
-           
+    logger.info("Evaluation folder: %s", paths.root)
+
+    info = {
+        "status": "running",
+        "started": datetime.now().isoformat(timespec="seconds"),
+        "inputs": {k: str(Path(args[k]).resolve()) for k in ("img_dir", "anns_dir", "dets_csv")},
+        "parameters": {"iou_threshould": args["iou_threshould"]},
+        "code": code_version(),
+        "environment": environment(),
+    }
+    write_info(paths.info, info)
+    _current_eval.update(paths=paths, info=info)
+
     
     # ------------------------------------------------- #
     # --  Retrieve image ID's from each data set    --- #
@@ -216,10 +238,13 @@ def main():
     # detections
     try:
         # img_id as str: numeric file names must keep e.g. leading zeros
-        dets = pd.read_csv(args["dets_csv"], dtype={"img_id": str})
+        dets = pd.read_csv(args["dets_csv"], dtype={"img_id": str, "transect_id": str, "scale_id": str})
     except FileNotFoundError:
         FileNotFound_logAndOut("No such file or directory: {}".format(args["dets_csv"]))
-        
+    # a run's results/circuli.csv (or focus.csv) names the image column differently
+    if "img_id" not in dets:
+        dets = dets.rename(columns={"transect_id": "img_id"} if "transect_id" in dets else {"scale_id": "img_id"})
+
     det_ids = dets.img_id.unique().tolist()
 
     
@@ -287,7 +312,7 @@ def main():
     # --- Annotations (ground truth bounding boxes): convert from Pascal VOC xlm to txt files
     
     # (always work on copies in the output dir: the user's annotation dir is never written to)
-    anns_temp_dir = os.path.join(args["output_dir"], "temp", "gt_temp")
+    anns_temp_dir = str(paths.temp / "gt_temp")
     os.makedirs(anns_temp_dir, exist_ok=True)
     for ann_id in ann_ids:
         if ann_format == "xml":
@@ -310,7 +335,7 @@ def main():
     dets_eval = dets_eval[["img_id", "class_name", "score", "xmin", "ymin", "xmax", "ymax"]]
     
     # set up temporary directory to hold detection files
-    dets_temp_dir = os.path.join(args["output_dir"], "temp", "dets_temp")
+    dets_temp_dir = str(paths.temp / "dets_temp")
     os.makedirs(dets_temp_dir, exist_ok=True)
     
     # write out detection bounding boxes in each image in separate files
@@ -329,7 +354,7 @@ def main():
         logger.info("Plotting images contrasting detections vs annotations")
         
         # Create directory to take detection images, if required
-        dets_vs_anns_img_dir = os.path.join(args["output_dir"], "dets_vs_anns_plots")
+        dets_vs_anns_img_dir = str(paths.plots)
         os.makedirs(dets_vs_anns_img_dir, exist_ok=True)
 
         for img_filepath, img_id in tqdm(zip(img_filepaths, img_ids, strict=True), total = len(img_filepaths), 
@@ -372,18 +397,18 @@ def main():
     evaluate(
         gtFolder = anns_temp_dir, 
         detFolder = dets_temp_dir,
-        savePath = args["output_dir"],
+        savePath = str(paths.results),
         iouThreshold = args["iou_threshould"],
         gtFormat = "xyrb",
         detFormat ="xyrb",
         gtCoordinates = "abs",
         detCoordinates = "abs",
-        showPlot=False,  # the PR curve is saved to output_dir
+        showPlot=False,  # the PR curve is saved to results/
         #imgSize = (3904,64),
         get_details = args["get_details"]
         )
 
-    logger.info("All outputs saved to %s", args["output_dir"]) 
+    logger.info("Results saved to %s", paths.results)
 
     ## --- Summarise Run
     num_images = len(img_ids)   
@@ -403,7 +428,11 @@ def main():
         
 
     # Clean temporary folders
-    clean_output_dir(os.path.join(args["output_dir"], "temp"))
+    clean_output_dir(paths.temp)
+
+    info.update(status="completed", finished=datetime.now().isoformat(timespec="seconds"),
+                runtime_min=run_duration, counts={"images": num_images, "detections": num_dets})
+    write_info(paths.info, info)
 
     # Stop logging process
     logging.shutdown()
@@ -412,8 +441,24 @@ def main():
 
     
 # ------------------------------------------------------------------------------
+# evaluation folder and record of the evaluation in progress, so a failure can be recorded
+_current_eval = {}
+
+
+def run():
+    try:
+        main()
+    except BaseException as err:  # record failures (incl. Ctrl+C) before re-raising
+        if _current_eval:
+            info = _current_eval["info"]
+            info.update(status="failed", finished=datetime.now().isoformat(timespec="seconds"),
+                        error=f"{type(err).__name__}: {err}")
+            write_info(_current_eval["paths"].info, info)
+        raise
+
+
 if __name__ == "__main__":
-    main()
+    run()
     
     
     

@@ -384,6 +384,7 @@ def detect(
     draw_det_num=False,
     fig_w=25,
     fig_h=20,
+    progress=None,
 ):
     """
     Run one YOLOv3 detector on every jpeg in `img_dir`.
@@ -410,6 +411,8 @@ def detect(
         if given, the detections of each image are also written to <img_id>.txt here
     draw_det_num, fig_w, fig_h :
         plot options (number the boxes; figure size in inches)
+    progress : callable, optional
+        called as progress(done, total) after each image
 
     Returns
     -------
@@ -460,7 +463,7 @@ def detect(
     img_detections_dfs = []
     no_detections_img_id = []
 
-    for img_filepath in tqdm(img_filepaths, ascii=True, ncols=120):
+    for i, img_filepath in enumerate(tqdm(img_filepaths, ascii=True, ncols=120), 1):
         # read-in original img as a tensor
         img_orig = tf.image.decode_image(tf.io.read_file(img_filepath), channels=3)
 
@@ -507,6 +510,9 @@ def detect(
             os.makedirs(no_det_dir, exist_ok=True)
             im = Image.fromarray(img_orig.numpy())
             im.save(os.path.join(no_det_dir, img_id + ".jpeg"), "JPEG", quality=95)
+
+        if progress:
+            progress(i, len(img_filepaths))
 
     ## end of loop
 

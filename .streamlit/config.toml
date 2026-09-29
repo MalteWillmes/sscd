@@ -1,0 +1,13 @@
+# Streamlit settings for sscd_app.py (read when started from the repository root)
+
+[server]
+# only reachable from this computer; for a shared server, put the app behind the
+# institute's login / reverse proxy rather than opening it to the network
+address = "localhost"
+
+[browser]
+# don't send usage statistics to Streamlit
+gatherUsageStats = false
+
+[client]
+toolbarMode = "minimal"

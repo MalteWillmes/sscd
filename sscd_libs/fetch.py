@@ -1,11 +1,11 @@
 """
-sscd-fetch: CLI tool to download SSCD data assets.
+Download SSCD data assets (run as a module: `python -m sscd_libs.fetch`).
 
 Usage:
-    uv run sscd-fetch weights          # trained YOLO checkpoints (~790 MB)
-    uv run sscd-fetch training-data    # training example data (~1.3 GB)
-    uv run sscd-fetch darknet-weights  # pre-trained Darknet-53 weights (~248 MB)
-    uv run sscd-fetch all              # all of the above
+    uv run python -m sscd_libs.fetch weights          # trained YOLO checkpoints (~790 MB)
+    uv run python -m sscd_libs.fetch training-data    # training example data (~1.3 GB)
+    uv run python -m sscd_libs.fetch darknet-weights  # pre-trained Darknet-53 weights (~248 MB)
+    uv run python -m sscd_libs.fetch all              # all of the above
 """
 
 import argparse
@@ -119,7 +119,7 @@ def fetch_darknet_weights():
 
 def main():
     parser = argparse.ArgumentParser(
-        prog="sscd-fetch",
+        prog="python -m sscd_libs.fetch",
         description="Download SSCD data assets (model weights, training data).",
     )
     parser.add_argument(

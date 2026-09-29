@@ -39,9 +39,13 @@ logger = logging.getLogger(__name__)
 
 # ------------------------------------------------------------------------------
 def output_root(override=None):
-    """The output root: `override` if given, else $SSCD_OUTPUT_ROOT, else ~/sscd_outputs."""
-    root = Path(override or os.environ.get("SSCD_OUTPUT_ROOT") or DEFAULT_OUTPUT_ROOT).expanduser()
-    return root.resolve()
+    """The output root: `override` if given, else $SSCD_OUTPUT_ROOT, else output_root from
+    the settings file (sscd_libs/settings.py), else ~/sscd_outputs."""
+    from sscd_libs.settings import load_settings
+
+    root = (override or os.environ.get("SSCD_OUTPUT_ROOT") or load_settings()["output_root"]
+            or DEFAULT_OUTPUT_ROOT)
+    return Path(root).expanduser().resolve()
 
 
 def _check_outside_repo(path):
@@ -73,10 +77,14 @@ def _new_dir(parent, name=None):
     raise RuntimeError(f"Could not create a new folder in {parent}")
 
 
+# files a launcher (the GUI) may already have put in a reserved run folder
+LAUNCHER_FILES = {"console.log"}
+
+
 def _use_dir(path):
     """Use an explicitly given folder: it must be new or empty (nothing is ever overwritten)."""
     path = Path(path).resolve()
-    if path.exists() and (not path.is_dir() or any(path.iterdir())):
+    if path.exists() and (not path.is_dir() or any(p.name not in LAUNCHER_FILES for p in path.iterdir())):
         raise ValueError(f"'{path}' already exists and is not empty - SSCD never overwrites results. "
                          "Choose a new folder.")
     path.mkdir(parents=True, exist_ok=True)

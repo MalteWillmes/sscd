@@ -104,7 +104,7 @@ def list_input_images(input_imgs_dir):
 
 
 # ------------------------------------------------------------------------------
-def images_tiff_to_jpeg(input_imgs_dir, output_imgs_dir):
+def images_tiff_to_jpeg(input_imgs_dir, output_imgs_dir, progress=None):
     
     """
     Wrapper to convert tiff images located within the directory into jpeg format.
@@ -117,6 +117,8 @@ def images_tiff_to_jpeg(input_imgs_dir, output_imgs_dir):
             in the output directory
     output_imgs_dir : str
         path directory where jpeg image files should be written
+    progress : callable, optional
+        called as progress(done, total) after each converted image
         
         
     Returns
@@ -140,8 +142,10 @@ def images_tiff_to_jpeg(input_imgs_dir, output_imgs_dir):
         logger.info("Converting %d images to jpeg format", len(img_input_fpaths))
         
         # use the executor to map the converting function to the iterable of input paths
-        list(tqdm(executor.map(tiff_to_jpg, img_input_fpaths, img_output_fpaths),
-                  total=len(img_input_fpaths), ascii = True, ncols = 120))
+        converted = executor.map(tiff_to_jpg, img_input_fpaths, img_output_fpaths)
+        for i, _ in enumerate(tqdm(converted, total=len(img_input_fpaths), ascii=True, ncols=120), 1):
+            if progress:
+                progress(i, len(img_input_fpaths))
         
     #return 0
 

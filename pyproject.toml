@@ -32,8 +32,10 @@ readme = "README.md"
 requires-python = ">=3.10,<3.13"
 version = "0.1.0"
 
-[project.scripts]
-sscd-fetch = "sscd_libs.fetch:main"
+[project.optional-dependencies]
+gui = [
+    "streamlit>=1.64.0,<2.0.0",
+]
 
 [tool.deptry]
 # pascalvoc.py is the vendored metrics library's own stand-alone CLI (not used

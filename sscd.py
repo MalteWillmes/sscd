@@ -45,8 +45,10 @@ from sscd_libs.helpers import (
     boolean_string,
     unpack_for_string,
     )
-from sscd_libs.outputs import code_version, environment, new_run, write_info
-from sscd_libs.overlay import circuli_on_scale, focus_by_scale, split_transect_ids
+from sscd_libs.outputs import code_version, environment, new_run, output_root, write_info
+from sscd_libs.overlay import circuli_on_scale, draw_run_overlays, focus_by_scale, split_transect_ids
+from sscd_libs.runcontrol import RunControl, RunSlot, StopRequested
+from sscd_libs.settings import load_settings
 
 from sscd_libs.detection import detect
 
@@ -241,16 +243,20 @@ def scales_summary(scale_ids, focus, transect_ids, circuli):
     return pd.DataFrame(rows)
 
 
-def run_pipeline(args, paths):
-    """Detection pipeline for one run; writes into the run folder `paths`. Returns counts."""
+def run_pipeline(args, paths, control):
+    """Detection pipeline for one run; writes into the run folder `paths` and reports
+    progress through `control` (RunControl). Returns counts."""
 
     per_image = args["dets_separate_files"]
+    n_images = len(list_input_images(args["img_dir"]))
 
     ## --- 1. Convert image files to jpeg format (work/scales)
-    images_tiff_to_jpeg(args["img_dir"], str(paths.scales))
+    control.start_stage("convert", n_images)
+    images_tiff_to_jpeg(args["img_dir"], str(paths.scales), progress=control.progress_callback())
 
     ## --- 2. Focus detection
     logger.info("Gearing up focus detection")
+    control.start_stage("focus", n_images)
     focus_dets = detect(
         img_dir=str(paths.scales),
         weights=WEIGHTS["focus"],
@@ -261,12 +267,14 @@ def run_pipeline(args, paths):
         draw_det_num=False,
         fig_w=65,
         fig_h=60,
+        progress=control.progress_callback(),
         **FOCUS_MODEL,
     )
     logger.info("Finished focus detection")
 
     scale_ids = focus_dets["img_id"].tolist()   # every scale, with or without focus
     focus_found = focus_dets.dropna(subset=["score"])
+    control.counts.update(scales=len(scale_ids), focus_found=len(focus_found))
 
     focus = focus_found.rename(columns={"img_id": "scale_id"})
     focus["x_px"] = (focus["xmin"] + focus["xmax"]) / 2
@@ -287,11 +295,13 @@ def run_pipeline(args, paths):
 
         ## --- 4. Generate transect images off the detected focus (work/transects)
         logger.info("Extracting images of radial transects from focus in %d scales", len(focus_found))
+        control.start_stage("transects", len(focus_found))
         for focus_bbx in tqdm(focus_found.to_dict("records"), ascii=True, ncols=120):
             get_transects(focus_bbox=focus_bbx,
                           transect_degrees=args["transect_angles"],
                           img_filepath=str(paths.scales / (focus_bbx["img_id"] + ".jpg")),
                           output_dir=str(paths.transects))
+            control.advance()
         logger.info("Finished extracting transect images")
 
         has_transects = any(paths.transects.glob("*.jpg"))
@@ -302,6 +312,7 @@ def run_pipeline(args, paths):
         else:
             ## --- 5. Circuli detections (model for non-padded images, for conf thresh of 0.3)
             logger.info("Gearing up circuli detector")
+            control.start_stage("circuli", len(list(paths.transects.glob("*.jpg"))))
             circuli_dets = detect(
                 img_dir=str(paths.transects),
                 weights=WEIGHTS["circuli"],
@@ -313,6 +324,7 @@ def run_pipeline(args, paths):
                 draw_det_num=True,
                 fig_w=100,
                 fig_h=5,
+                progress=control.progress_callback(),
                 **CIRCULI_MODEL,
             )
             logger.info("Finished circuli detection")
@@ -351,6 +363,15 @@ def run_pipeline(args, paths):
 
     counts = {"scales": len(scale_ids), "focus_found": len(focus), "transects": len(transect_ids),
               "circuli": len(circuli)}
+    control.counts.update(counts)
+    control.save()
+
+    ## --- 10. Circuli drawn onto the scale images (overlays/)
+    if args["overlays"] and len(focus):
+        control.start_stage("overlays", len(focus))
+        draw_run_overlays(paths, args["transect_angles"], str(Path(args["img_dir"]).resolve()),
+                          progress=control.progress_callback())
+
     logger.info("Summary"
                 "\n\n---------------------------------------------------------"
                 f"\nScale images processed: {counts['scales']}"
@@ -427,9 +448,15 @@ def main():
         default=200,
         help="Maximum number of detections per transect image",
     )
+    args_parser.add_argument(
+        "--overlays",
+        required=False,
+        type=boolean_string,
+        default=False,
+        help="also draw the circuli onto the scale images at the end (overlays/); the same as "
+        "running overlay_detections.py afterwards",
+    )
     args = vars(args_parser.parse_args())
-
-    run_start = time()
 
     # --------------------------------------- #
     # --               Checks             --- #
@@ -470,11 +497,11 @@ def main():
     # --------------------------------------- #
 
     info = {
-        "status": "running",
-        "started": datetime.now().isoformat(timespec="seconds"),
+        "status": "queued",
+        "created": datetime.now().isoformat(timespec="seconds"),
         "input_dir": str(Path(args["img_dir"]).resolve()),
         "parameters": {k: args[k] for k in ("transect_angles", "transect_max_boxes", "plot_dets",
-                                            "dets_separate_files")},
+                                            "dets_separate_files", "overlays")},
         "models": {
             "focus": {"weights": Path(WEIGHTS["focus"]).name, **FOCUS_MODEL},
             "circuli": {"weights": Path(WEIGHTS["circuli"]).name, **CIRCULI_MODEL,
@@ -482,22 +509,48 @@ def main():
         },
         "code": code_version(),
         "environment": environment(),
+        "pid": os.getpid(),
     }
     write_info(paths.info, info)
 
-    try:
-        counts = run_pipeline(args, paths)
-    except BaseException as err:  # record failures (incl. Ctrl+C) before re-raising
-        info.update(status="failed", finished=datetime.now().isoformat(timespec="seconds"),
-                    error=f"{type(err).__name__}: {err}")
+    # live progress, warnings and stop requests (progress.json / STOP in the run folder)
+    control = RunControl(paths.root)
+    logging.getLogger().addHandler(control.handler)
+    control.save()
+
+    def finish(status, **fields):
+        info.update(status=status, finished=datetime.now().isoformat(timespec="seconds"),
+                    warnings=control.warnings, **fields)
         write_info(paths.info, info)
+        control.set_status(status)
+
+    try:
+        # at most max_concurrent_runs runs execute at a time; further runs wait here
+        slot = RunSlot(output_root(args["output_root"]), load_settings()["max_concurrent_runs"])
+        slot.wait(paths.root, control,
+                  on_wait=lambda: logger.info("Waiting for a free run slot (other runs in progress)..."))
+        run_start = time()
+        info.update(status="running", started=datetime.now().isoformat(timespec="seconds"))
+        write_info(paths.info, info)
+        control.set_status("running")
+
+        counts = run_pipeline(args, paths, control)
+
+    except (StopRequested, KeyboardInterrupt) as err:
+        logger.warning("Run stopped - results written so far are kept in %s", paths.root)
+        finish("stopped", counts=control.counts)
+        logging.shutdown()
+        if isinstance(err, KeyboardInterrupt):
+            raise
+        return
+    except BaseException as err:  # record failures before re-raising
+        logger.exception("Run failed")
+        finish("failed", counts=control.counts, error=f"{type(err).__name__}: {err}")
         logging.shutdown()
         raise
 
     run_duration = round((time() - run_start) / 60, 2)
-    info.update(status="completed", finished=datetime.now().isoformat(timespec="seconds"),
-                runtime_min=run_duration, counts=counts)
-    write_info(paths.info, info)
+    finish("completed", runtime_min=run_duration, counts=counts)
 
     logger.info("Run finished in %s mins. Results: %s", run_duration, paths.results)
     logging.shutdown()

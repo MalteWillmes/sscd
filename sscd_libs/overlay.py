@@ -3,10 +3,15 @@ Map circuli detections from transect images back onto the scale image, and
 draw them there.
 """
 
+import logging
+from pathlib import Path
+
 import pandas as pd
 from PIL import Image, ImageDraw, ImageFont
 
-from sscd_libs.data_processing import transect_geometry, transect_to_image
+from sscd_libs.data_processing import list_input_images, to_8bit_rgb, transect_geometry, transect_to_image
+
+logger = logging.getLogger(__name__)
 
 # one colour per transect (colour-blind friendly, readable on the pale scale background)
 TRANSECT_COLOURS = [
@@ -126,3 +131,57 @@ def focus_by_scale(focus):
 def read_results_csv(path):
     """Read a results table keeping ids as text (numeric names keep leading zeros)."""
     return pd.read_csv(path, dtype={"scale_id": str, "transect_id": str, "img_id": str})
+
+
+# ------------------------------------------------------------------------------
+_originals = {}  # input dir -> {scale id: original image path}
+
+
+def scale_image(run, input_dir, scale_id):
+    """
+    The scale image to draw on: the run's jpeg copy in work/scales, or - if work/
+    was deleted - the original input image, converted the same way sscd.py does.
+    """
+    work_copy = run.scales / f"{scale_id}.jpg"
+    if work_copy.exists():
+        return work_copy
+    if input_dir not in _originals:
+        try:
+            _originals[input_dir] = {Path(p).stem: p for p in list_input_images(input_dir)}
+        except (FileNotFoundError, OSError):
+            _originals[input_dir] = {}
+    original = _originals[input_dir].get(scale_id)
+    if original is None:
+        raise FileNotFoundError(
+            f"Scale image '{scale_id}' not found: neither {work_copy} nor an original in the run's "
+            f"input folder {input_dir}."
+        )
+    with Image.open(original) as im:
+        im.load()  # read the pixels before the file is closed
+        return to_8bit_rgb(im)
+
+
+def draw_run_overlays(run, angles, input_dir, label_every=0, progress=None):
+    """
+    Draw <run>/overlays/<scale>_overlay.jpg for every scale with a focus, from the
+    run's results. Returns the number of overlays drawn.
+
+    Args
+    ----
+        run: RunPaths of the run
+        angles: the transect angles of the run (run_info.json parameters)
+        input_dir: the run's input folder (fallback if work/ was deleted)
+        label_every: number every n-th circulus (0 = no numbers)
+        progress: optional callable(done, total), called after each scale
+    """
+    focus = focus_by_scale(read_results_csv(run.focus_csv))
+    circuli = read_results_csv(run.circuli_csv)
+    run.overlays.mkdir(exist_ok=True)
+    for i, (scale_id, focus_bbox) in enumerate(focus.items(), 1):
+        scale_circuli = circuli[circuli["scale_id"] == scale_id]
+        draw_overlay(scale_image(run, input_dir, scale_id), focus_bbox, angles, scale_circuli,
+                     run.overlays / f"{scale_id}_overlay.jpg", label_every=label_every)
+        logger.info("Overlay %s: %d circuli", scale_id, len(scale_circuli))
+        if progress:
+            progress(i, len(focus))
+    return len(focus)

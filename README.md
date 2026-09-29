@@ -33,8 +33,12 @@ cd sscd
 This step creates a virtual environment for the SSCD tool, with all the required packages and Python dependencies being automatically installed.
 
 ```bash
-uv sync --dev
+uv sync --dev --extra gui
 ```
+
+(`--extra gui` installs the web app's dependencies; leave it out if you only use the command
+line. Use the same command whenever you update the environment, otherwise `uv sync` removes
+them again.)
 
 Windows notes:
 
@@ -50,11 +54,10 @@ Windows notes:
   Run the following command to download and extract the trained weights (~790 MB) into `data/yoloV3_checkpoints/`:
 
   ```bash
-  uv run sscd-fetch weights
+  uv run python -m sscd_libs.fetch weights
   ```
 
-  (If your system blocks the `sscd-fetch` launcher, use `uv run python -m sscd_libs.fetch weights` instead.
-  `run_example.py` below also downloads the weights automatically if they are missing.)
+  (`run_example.py` and the GUI also download the weights automatically if they are missing.)
 
   That's it: installation (hopefully) done!
 
@@ -100,7 +103,8 @@ uv add requests
      │     │     │     │                             median spacing, transects without circuli
      │     │     │     └─── per_image               focus/, circuli/: one txt per image
      │     │     │                                  (if --dets_separate_files True)
-     │     │     ├─── overlays                      <scale>_overlay.jpg (overlay_detections.py)
+     │     │     ├─── progress.json                 live progress, counts and warnings (for the GUI)
+     │     │     ├─── overlays                      <scale>_overlay.jpg (--overlays / overlay_detections.py)
      │     │     ├─── qc
      │     │     │     ├─── focus_plots             focus detections drawn on each scale
      │     │     │     ├─── circuli_plots           circuli detections drawn on each transect
@@ -136,6 +140,45 @@ uv add requests
   `results/scales_summary.csv` lists every input scale: `focus_found`, `focus_score`,
   `n_transects`, `n_circuli`, `median_spacing_px` and `transects_without_circuli` (angles).
 
+### Web app (GUI)
+
+  ```bash
+  uv run --extra gui python -m streamlit run sscd_app.py
+  ```
+
+  (or **SSCD: GUI (web app)** in VS Code). This opens SSCD in your browser, at
+  http://localhost:8501 - it only runs on your own computer. In the app you:
+
+  - choose the folder with the scale images (type or paste the path, or use *Browse folders*);
+    it is checked straight away (number of images, file types, clashing names)
+  - optionally give the run a name, and set the transect angles and advanced options
+  - start the run, and follow it: a progress bar per stage, the numbers of images, scales with
+    a focus, transects and circuli, and any warnings (e.g. scales where no focus was found) or
+    errors
+  - stop a run: it ends after the current image and keeps the results written so far
+    (status *stopped*)
+
+  Overlays are drawn at the end of each run by default (`overlay_detections.py` can still add
+  or redraw them later). A run is an ordinary `sscd.py` run in its own process: it keeps going
+  if you close the browser tab, and the app's *Recent runs* list shows it again. Only one run
+  executes at a time; further runs wait in a queue.
+
+  **Settings (e.g. for a shared server).** An optional settings file, `~/.sscd/settings.toml`
+  (or the file named by the `SSCD_SETTINGS` environment variable), can fix the output root,
+  restrict which folders the app accepts, and allow more simultaneous runs:
+
+  ```toml
+  output_root = "/data/sscd_outputs"
+  allowed_input_roots = ["/mnt/scale_archive"]   # empty / missing: any folder
+  max_concurrent_runs = 1
+  ```
+
+  On a server, scale images are read from folders on the server (e.g. a mounted network share
+  holding the scale archive). The app has no login of its own and only listens on `localhost`
+  (see `.streamlit/config.toml`): make it available to colleagues through the institute's
+  reverse proxy / single sign-on rather than opening the port directly. On Linux, TensorFlow
+  can also use a GPU.
+
 ### Quick start: run the bundled example
 
   ```bash
@@ -152,6 +195,7 @@ uv add requests
   1. Open the repository folder in VS Code (with the Python extension installed).
   2. `Ctrl+Shift+P` → *Python: Select Interpreter* → choose the project's `.venv`.
   3. Open *Run and Debug* (`Ctrl+Shift+D`), pick a configuration and press `F5`:
+     - **SSCD: GUI (web app)** (see above)
      - **SSCD: run example** / **SSCD: run example + evaluation** / **SSCD: run example + overlay**
      - **SSCD: run on a folder of scales**: asks for the image folder and an optional run name
      - **SSCD: overlay detections of the latest run**
@@ -196,6 +240,7 @@ uv add requests
 | `--plot_dets`    | Save images with the detections drawn on them (`qc/`), for visual inspection | bool (`True`/`False`)  | `True` |
 | `--dets_separate_files` | Also write the detections of each image to a separate txt file (`results/per_image/`) | bool (`True`/`False`) | `False` |
 | `--transect_max_boxes` | Maximum number of detections per transect image              | int    | `200`  |
+| `--overlays` | Also draw the circuli onto the scale images at the end (`overlays/`), like `overlay_detections.py` | bool (`True`/`False`) | `False` (the GUI: on) |
 
 
 ### Circuli detections on the original scale image

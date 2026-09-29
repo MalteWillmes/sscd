@@ -8,8 +8,10 @@ radial transects, using two YOLOv3 detectors.
 > circuli using deep learning. *Biology Methods and Protocols* 9(1): bpae056.
 > https://doi.org/10.1093/biomethods/bpae056
 
-This is a fork of [NINAnor/sscd](https://github.com/NINAnor/sscd) (original code by Bruno Caneco),
-updated for TensorFlow 2.16+/Keras 3, with a web app, overlays and a new output layout.
+The original code by Bruno Caneco is at
+[bitbucket.org/ffl-salmon-at-sea/sscd](https://bitbucket.org/ffl-salmon-at-sea/sscd/src/main/).
+This is a fork of [NINAnor/sscd](https://github.com/NINAnor/sscd), updated for TensorFlow
+2.16+/Keras 3, with a web app, overlays and a new output layout.
 
 - [Getting started](#getting-started)
 - [Outputs](#outputs)

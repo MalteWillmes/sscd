@@ -41,7 +41,7 @@ write_csv(dets, file.path(det_dir, "detections.csv"))
 #   img_dir = "../data/transect_imgs/",
 #   anns_dir = "../data/circulus_anns_Bruno_xml/",
 #   dets_csv = "../data/sscd_detections/detections.csv", 
-#   output_dir = "../data/sscd_vs_Bruno", 
+#   eval_name = "sscd_vs_Bruno", 
 #   iou_threshould = 0.5,
 #   plot_dets_vs_anns = TRUE, 
 #   sep_plots = TRUE)
@@ -56,7 +56,7 @@ write_csv(dets, file.path(det_dir, "detections.csv"))
 #   img_dir = "../data/transect_imgs/",
 #   anns_dir = "../data/circulus_anns_Jason_xml/",
 #   dets_csv = "../data/sscd_detections/detections.csv", 
-#   output_dir = "../data/sscd_vs_Jason", 
+#   eval_name = "sscd_vs_Jason", 
 #   iou_threshould = 0.5,
 #   plot_dets_vs_anns = TRUE, 
 #   sep_plots = TRUE)
@@ -69,7 +69,7 @@ write_csv(dets, file.path(det_dir, "detections.csv"))
 #   img_dir = "../data/transect_imgs/",
 #   anns_dir = "../data/circulus_anns_Bruno_xml/",
 #   dets_csv = "../data/dets_Jason/detections.csv", 
-#   output_dir = "../data/Jason_vs_Bruno", 
+#   eval_name = "Jason_vs_Bruno", 
 #   iou_threshould = 0.5,
 #   plot_dets_vs_anns = TRUE, 
 #   sep_plots = TRUE)
@@ -87,7 +87,7 @@ write_csv(dets, file.path(det_dir, "detections.csv"))
 #                           <!--   img_dir = "../data/transect_imgs/", -->
 #                           <!--   anns_dir = "../data/circulus_anns_Jason_xml/", -->
 #                           <!--   dets_csv = "../data/dets_Bruno/detections.csv",  -->
-#                           <!--   output_dir = "../data/Bruno_vs_Jason",  -->
+#                           <!--   eval_name = "Bruno_vs_Jason",  -->
 #                           <!--   iou_threshould = 0.5, -->
 #                           <!--   plot_dets_vs_anns = TRUE,  -->
 #                           <!--   sep_plots = TRUE) -->

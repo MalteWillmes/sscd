@@ -20,6 +20,7 @@ Nothing is ever deleted: every run gets a new folder.
 """
 
 import json
+import logging
 import os
 import platform
 import re
@@ -32,6 +33,8 @@ from pathlib import Path
 from sscd_libs.helpers import REPO_DIR
 
 DEFAULT_OUTPUT_ROOT = Path.home() / "sscd_outputs"
+
+logger = logging.getLogger(__name__)
 
 
 # ------------------------------------------------------------------------------
@@ -223,11 +226,29 @@ def open_run(run_dir):
 
 
 def latest_run(root=None):
-    """The most recently created run folder under the output root."""
-    runs = [p for p in (output_root(root) / "runs").glob("*") if (p / "run_info.json").exists()]
-    if not runs:
-        raise FileNotFoundError(f"No runs found in {output_root(root) / 'runs'}")
-    return RunPaths(max(runs, key=lambda p: p.stat().st_ctime))
+    """
+    The most recently started run under the output root that completed.
+
+    Ordered by the start time recorded in run_info.json (file-system times change
+    when files are added or folders copied). Newer runs that failed or are still
+    running are skipped, with a warning.
+    """
+    runs_dir = output_root(root) / "runs"
+    runs = []
+    for p in runs_dir.glob("*"):
+        try:
+            info = json.loads((p / "run_info.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue  # not a run folder, or run_info.json unreadable
+        runs.append((info.get("started", ""), p.name, info.get("status"), p))
+    completed = [r for r in runs if r[2] == "completed"]
+    if not completed:
+        raise FileNotFoundError(f"No completed runs found in {runs_dir}")
+    latest = max(completed)
+    for started, name, status, _ in sorted(runs):
+        if (started, name) > latest[:2]:
+            logger.warning("Skipping newer run %s (status: %s)", name, status)
+    return RunPaths(latest[3])
 
 
 # ------------------------------------------------------------------------------

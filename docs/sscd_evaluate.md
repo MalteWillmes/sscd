@@ -35,7 +35,9 @@ An important caveat in the evaluation process is the quality of the annotation d
 
 - There is a [panoply][1] of annotation tools available for labelling objects in images.
 
-- For its simplicity, speed and ease of use, we recommend [*LabelImg*][2]. Install it in your UV environment with `uv add labelImg` and see the [LabelImg documentation][4] for usage instructions.
+- For its simplicity, speed and ease of use, we recommend [*LabelImg*][2] (see the [LabelImg documentation][4] for usage instructions). It does not need to be installed into SSCD's environment - see step 2 below.
+
+- LabelImg is no longer maintained and has known crashes on recent Python versions (e.g. when drawing boxes). If it doesn't work for you, maintained alternatives that export Pascal VOC XML include [Label Studio](https://labelstud.io) and [CVAT](https://www.cvat.ai).
 
 > Note: the evaluation tool expects annotation files to be in Pascal VOC format. Thus, if using a different annotation software without the option of Pascal VOC as an output format, annotations will need to be converted accordingly (e.g. this [python package][3] offers a range of format conversions).
 
@@ -68,16 +70,12 @@ An important caveat in the evaluation process is the quality of the annotation d
 
 ### 2. Label the images
 
-- If you haven't installed LabelImg yet, add it to your environment:
+- Launch LabelImg in a temporary environment of its own (this doesn't add it to SSCD's
+  dependencies; `setuptools` is needed because LabelImg still uses `distutils`, which Python
+  3.12 removed):
 
   ```bash
-  uv add labelImg
-  ```
-
-- Launch LabelImg:
-
-  ```bash
-  uv run labelimg
+  uv run --no-project --with labelImg --with setuptools python -m labelImg.labelImg
   ```
 
 - Go to `File > Open Dir` and select the images' directory (here, `<some_path>/eval_circuli_detector/imgs`)
@@ -112,15 +110,11 @@ An important caveat in the evaluation process is the quality of the annotation d
 From the SSCD directory, run:
 
 ```bash
-uv run python eval_detector.py \
-    --img_dir "<some_path>/eval_circuli_detector/imgs" \
-    --anns_dir "<some_path>/eval_circuli_detector/anns" \
-    --dets_csv "<run folder>/results/circuli.csv" \
-    --iou_threshould 0.5 \
-    --eval_name "circuli-2024-check" \
-    --plot_dets_vs_anns True \
-    --sep_plots True
+uv run python eval_detector.py --img_dir "<some_path>/eval_circuli_detector/imgs" --anns_dir "<some_path>/eval_circuli_detector/anns" --dets_csv "<run folder>/results/circuli.csv" --eval_name "circuli-2024-check" --sep_plots True
 ```
+
+(one line, so it works in PowerShell and cmd as well as bash; `--iou_threshould 0.5` and
+`--plot_dets_vs_anns True` are the defaults)
 
 
 

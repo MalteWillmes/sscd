@@ -36,6 +36,15 @@ This step creates a virtual environment for the SSCD tool, with all the required
 uv sync --dev
 ```
 
+Windows notes:
+
+- Keep the repository in a folder with a reasonably short path. Some TensorFlow files have
+  ~150-character paths inside the environment, and Windows' 260-character path limit then
+  breaks the install (import errors from `tensorflow`) unless
+  [long paths are enabled](https://learn.microsoft.com/windows/win32/fileio/maximum-file-path-limitation).
+- In a Dropbox/OneDrive folder, `uv` may fail with "incompatible hardlinks": set
+  `setx UV_LINK_MODE copy` once (then open a new terminal), or add `--link-mode=copy`.
+
 #### 3. Download YOLOv3 weights for focus and circuli detectors
 
   Run the following command to download and extract the trained weights (~790 MB) into `data/yoloV3_checkpoints/`:
@@ -73,7 +82,8 @@ uv add requests
 
   - default: `sscd_outputs` in your home folder (e.g. `C:\Users\<you>\sscd_outputs`)
   - to change it permanently, set the `SSCD_OUTPUT_ROOT` environment variable
-    (Windows: `setx SSCD_OUTPUT_ROOT "D:\SSCD results"`, then open a new terminal);
+    to an absolute path (Windows: `setx SSCD_OUTPUT_ROOT "D:\SSCD results"`, then open a new
+    terminal / restart VS Code);
     for a single run, pass `--output_root`
 
   ```
@@ -155,7 +165,7 @@ uv add requests
   hybrid laptop CPUs (e.g. 12th-gen "U" series). Results are unaffected:
 
   ```bash
-  # Windows (new terminals only)
+  # Windows (applies to new terminals; restart VS Code)
   setx TF_ENABLE_ONEDNN_OPTS 0
   # Linux/macOS
   export TF_ENABLE_ONEDNN_OPTS=0
@@ -215,14 +225,7 @@ A more detailed guide for evaluating the performance of SSCD's detectors is avai
 The following example evaluates the circulus detector on the bundled annotated transects (`uv run python run_example.py --eval` runs the same thing):
 
 ```bash
-uv run python eval_detector.py \
-    --img_dir "./data/eval_example/imgs/" \
-    --anns_dir "./data/eval_example/anns/" \
-    --dets_csv "./data/eval_example/detections.csv" \
-    --iou_threshould 0.5 \
-    --eval_name "example" \
-    --plot_dets_vs_anns True \
-    --sep_plots True
+uv run python eval_detector.py --img_dir "./data/eval_example/imgs/" --anns_dir "./data/eval_example/anns/" --dets_csv "./data/eval_example/detections.csv" --eval_name "example" --sep_plots True
 ```
 
 ### `eval_detector.py` inputs
@@ -316,6 +319,9 @@ To run pre-commit on all files:
 ```bash
 pre-commit run --all-files
 ```
+
+On machines that block `.exe` launchers in user folders, pre-commit (and its hooks) cannot run
+locally; the same checks run on GitHub (Actions, once enabled for the repository).
 
 
 ### References (supporting code)

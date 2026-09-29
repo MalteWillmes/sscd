@@ -84,15 +84,6 @@ def parse_angles(text):
     return angles
 
 
-def list_subfolders(path):
-    """Sub-folders of `path` (for the folder browser); empty if unreadable."""
-    try:
-        return sorted((p for p in Path(path).iterdir() if p.is_dir() and not p.name.startswith(".")),
-                      key=lambda p: p.name.lower())
-    except OSError:
-        return []
-
-
 # ------------------------------------------------------------------------------
 def start_run(input_dir, run_name, angles, settings, overlays=True, plot_dets=True,
               per_image_files=False, max_circuli=200, focus_retry=True, focus_low_threshold=0.1):

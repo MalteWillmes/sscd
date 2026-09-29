@@ -213,8 +213,10 @@ uv add requests
   This opens SSCD in your browser, at
   http://localhost:8501 - it only runs on your own computer. In the app you:
 
-  - choose the folder with the scale images (type or paste the path, or use *Browse folders*);
-    it is checked straight away (number of images, file types, clashing names, identical copies)
+  - choose the folder with the scale images: type or paste the path, click *Choose folder...*
+    (your computer's own folder window; not shown on a server), pick one of the *Recent folders*
+    used in earlier runs, or use *Browse folders* (click any part of the path to go up); it is
+    checked straight away (number of images, file types, clashing names, identical copies)
   - optionally give the run a name, and set the transect angles and advanced options
   - start the run, and follow it: a progress bar per stage, the numbers of images, scales with
     a focus, transects and circuli, and any warnings (e.g. scales where no focus was found) or

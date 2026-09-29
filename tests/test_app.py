@@ -35,3 +35,16 @@ def test_folder_and_angles_are_validated(app, example_scales, tmp_path):
     angles.set_value("0, 400").run()
     assert "between 0 and 359" in app.error[0].value
     assert _start_button(app).disabled
+
+
+def test_recent_folder_fills_in_the_folder(output_root, example_scales):
+    import json
+
+    run = output_root / "runs" / "2026-09-01_1000"
+    run.mkdir(parents=True)
+    (run / "run_info.json").write_text(json.dumps({"input_dir": str(example_scales)}))
+    at = AppTest.from_file(str(REPO_DIR / "sscd_app.py"), default_timeout=60).run()
+    at.selectbox(key="recent_dir").set_value(str(example_scales)).run()
+    assert not at.exception
+    assert at.text_input(key="img_dir").value == str(example_scales)
+    assert at.success[0].value.startswith("3 images")

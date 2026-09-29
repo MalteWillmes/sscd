@@ -17,10 +17,18 @@ import pandas as pd
 import streamlit as st
 
 from sscd_libs.fetch import WEIGHTS_SENTINELS, fetch_weights
+from sscd_libs.folders import (
+    browse_shortcuts,
+    choose_folder_dialog,
+    dialog_available,
+    has_images,
+    list_subfolders,
+    path_parts,
+    recent_input_dirs,
+)
 from sscd_libs.jobs import (
     FINISHED,
     check_input_dir,
-    list_subfolders,
     parse_angles,
     recent_runs,
     run_state,
@@ -86,42 +94,94 @@ if "img_dir" not in st.session_state:
 
 def _browse_start():
     current = Path(st.session_state.img_dir.strip().strip('"') or ".").expanduser()
-    if current.is_dir() and input_dir_allowed(current, settings):
+    if st.session_state.img_dir.strip() and current.is_dir() and input_dir_allowed(current, settings):
         return current.resolve()
-    roots = settings["allowed_input_roots"]
-    return Path(roots[0]) if roots else Path.home()
+    return browse_shortcuts(settings)[0]
 
 
 def _set_browse(path):
     st.session_state.browse_dir = str(path)
+    st.session_state.browse_filter = ""
 
 
-def _use_browse():
-    st.session_state.img_dir = st.session_state.browse_dir
+def _use_folder(path):
+    st.session_state.img_dir = str(path)
+    _set_browse(path)
 
 
-st.text_input("Scale images folder", key="img_dir",
-              help="Folder containing the scale images (.tif/.tiff/.jpg/.jpeg). It is only read, never changed.")
+def _open_dialog():
+    try:
+        chosen = choose_folder_dialog(_browse_start())
+    except OSError as err:
+        st.session_state.dialog_error = str(err)
+        return
+    if chosen:
+        _use_folder(chosen)
 
+
+def _use_recent():
+    if st.session_state.recent_dir:
+        _use_folder(st.session_state.recent_dir)
+    st.session_state.recent_dir = None
+
+
+def _place_label(place):
+    return "Home" if place == Path.home() else str(place)
+
+
+if dialog_available(settings):
+    col_path, col_dialog = st.columns([4, 1], vertical_alignment="bottom")
+else:  # on a server the dialog would open on the server's screen
+    col_path, col_dialog = st.container(), None
+col_path.text_input("Scale images folder", key="img_dir",
+                    help="Folder containing the scale images (.tif/.tiff/.jpg/.jpeg). It is only read, never changed.")
+if col_dialog is not None:
+    col_dialog.button("Choose folder...", on_click=_open_dialog, width="stretch",
+                      help="Opens your computer's folder window (if you don't see it, it may be behind the browser)")
+if dialog_error := st.session_state.pop("dialog_error", None):
+    st.error(f"Could not open the folder window ({dialog_error}). Type the path or use *Browse folders* instead.")
+
+recent = recent_input_dirs(ROOT, settings)
+if recent:
+    st.selectbox("Recent folders", recent, index=None, key="recent_dir", on_change=_use_recent,
+                 placeholder=f"Folders used in earlier runs ({len(recent)})")
+
+MAX_SUBFOLDER_BUTTONS = 100
 with st.expander("Browse folders"):
     if "browse_dir" not in st.session_state:
         st.session_state.browse_dir = str(_browse_start())
     browse = Path(st.session_state.browse_dir)
-    st.write(f"`{browse}`")
-    col_up, col_use = st.columns(2)
-    parent_ok = browse.parent != browse and input_dir_allowed(browse.parent, settings)
-    col_up.button("Up one level", on_click=_set_browse, args=(browse.parent,), disabled=not parent_ok,
-                  width="stretch")
-    col_use.button("Use this folder", on_click=_use_browse, type="primary", width="stretch")
+
+    with st.container(horizontal=True, gap="small", vertical_alignment="center"):
+        st.caption("Go to:", width="content")
+        for place in browse_shortcuts(settings):
+            st.button(_place_label(place), key=f"place:{place}", on_click=_set_browse, args=(place,),
+                      icon=":material/home:" if place == Path.home() else ":material/hard_drive:")
+
+    # the current path: each part opens that folder
+    with st.container(horizontal=True, gap=None, vertical_alignment="center"):
+        for i, part in enumerate(path_parts(browse, settings)):
+            if i:
+                st.markdown(":gray[/]", width="content")
+            st.button(part.name or str(part).rstrip("\\/"), key=f"part:{part}", on_click=_set_browse,
+                      args=(part,), type="tertiary")
+
     subfolders = list_subfolders(browse)
+    if len(subfolders) > 30:
+        wanted = st.text_input("Filter sub-folders", key="browse_filter", placeholder="Part of the folder name")
+        subfolders = [p for p in subfolders if wanted.strip().lower() in p.name.lower()]
     if subfolders:
-        choice = st.selectbox("Sub-folders", subfolders, format_func=lambda p: p.name, index=None,
-                              placeholder=f"{len(subfolders)} sub-folders - choose one to open")
-        if choice is not None:
-            _set_browse(choice)
-            st.rerun()
+        with st.container(horizontal=True, gap="small"):
+            for p in subfolders[:MAX_SUBFOLDER_BUTTONS]:
+                st.button(p.name, key=f"sub:{p}", on_click=_set_browse, args=(p,), icon=":material/folder:")
+        if len(subfolders) > MAX_SUBFOLDER_BUTTONS:
+            st.caption(f"... and {len(subfolders) - MAX_SUBFOLDER_BUTTONS} more - use the filter above.")
     else:
         st.caption("No sub-folders.")
+
+    images_here = has_images(browse)
+    st.button("Use this folder", on_click=_use_folder, args=(browse,), type="primary", disabled=not images_here,
+              help=None if images_here else "There are no scale images directly in this folder")
 
 @st.cache_data(ttl=60, show_spinner="Checking the folder...")
 def _check_folder(path, allowed_roots):

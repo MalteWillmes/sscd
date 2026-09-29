@@ -24,13 +24,16 @@ from pathlib import Path
 REPO_DIR = Path(__file__).resolve().parent
 
 
-def run(script, *args):
+def run(script, *args, reserved_dir=None):
     # Each stage runs in its own process so it gets its own log file and
     # releases all TensorFlow memory when it finishes.
     cmd = [sys.executable, script, *args]
     print("\n>>> " + " ".join(cmd) + "\n", flush=True)
     result = subprocess.run(cmd, cwd=REPO_DIR)  # noqa: S603 - fixed scripts, no shell
     if result.returncode != 0:
+        # don't leave behind the empty folder reserved for a run that never started
+        if reserved_dir is not None and reserved_dir.is_dir() and not any(reserved_dir.iterdir()):
+            reserved_dir.rmdir()
         # the actual error (traceback) was printed by the script itself, just above
         sys.exit(f"\n{script} failed (exit code {result.returncode}) - see its error message above.")
 
@@ -73,6 +76,7 @@ def main():
         "--run_dir", str(run_dir),
         "--transect_angles", "0", "45", "90", "135", "180",
         "--plot_dets", str(not args.no_plots),
+        reserved_dir=run_dir,
     )
 
     if args.overlay:
@@ -89,6 +93,7 @@ def main():
             "--eval_dir", str(eval_dir),
             "--plot_dets_vs_anns", str(not args.no_plots),
             "--sep_plots", "True",
+            reserved_dir=eval_dir,
         )
 
     print("\nDone. Key outputs:")

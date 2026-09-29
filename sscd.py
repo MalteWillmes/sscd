@@ -57,6 +57,8 @@ from sscd_libs.data_processing import (
     )
 
 
+logger = logging.getLogger(__name__)
+
 # model files, resolved relative to the repository so sscd.py runs from any directory
 DATA_DIR = os.path.join(REPO_DIR, "data")
 WEIGHTS = {
@@ -253,7 +255,7 @@ def run_pipeline(args, paths):
         img_dir=str(paths.scales),
         weights=WEIGHTS["focus"],
         classes_file=CLASS_FILES["focus"],
-        no_det_dir=str(paths.no_detections),
+        no_det_dir=str(paths.no_detections / "focus"),
         plot_dir=str(paths.focus_plots) if args["plot_dets"] else None,
         per_image_dir=str(paths.per_image / "focus") if per_image else None,
         draw_det_num=False,
@@ -269,6 +271,7 @@ def run_pipeline(args, paths):
     focus = focus_found.rename(columns={"img_id": "scale_id"})
     focus["x_px"] = (focus["xmin"] + focus["xmax"]) / 2
     focus["y_px"] = (focus["ymin"] + focus["ymax"]) / 2
+    focus = focus.astype({c: int for c in ("xmin", "ymin", "xmax", "ymax")})
     focus = focus.reindex(columns=FOCUS_COLUMNS)
 
     transect_ids = []
@@ -291,44 +294,50 @@ def run_pipeline(args, paths):
                           output_dir=str(paths.transects))
         logger.info("Finished extracting transect images")
 
-        ## --- 5. Circuli detections (model for non-padded images, for conf thresh of 0.3)
-        logger.info("Gearing up circuli detector")
-        circuli_dets = detect(
-            img_dir=str(paths.transects),
-            weights=WEIGHTS["circuli"],
-            classes_file=CLASS_FILES["circuli"],
-            no_det_dir=str(paths.no_detections),
-            yolo_max_boxes=args["transect_max_boxes"],
-            plot_dir=str(paths.circuli_plots) if args["plot_dets"] else None,
-            per_image_dir=str(paths.per_image / "circuli") if per_image else None,
-            draw_det_num=True,
-            fig_w=100,
-            fig_h=5,
-            **CIRCULI_MODEL,
-        )
-        logger.info("Finished circuli detection")
-        transect_ids = circuli_dets["img_id"].unique().tolist()
+        has_transects = any(paths.transects.glob("*.jpg"))
+        if not has_transects:
+            logger.warning("No transect could be extracted (every focus lies on the image border "
+                           "in the requested directions) - skipping circuli detection")
 
-        ## --- 6. Calculate circuli spacings
-        logger.info("Calculating intracirculus spacings (in pixels)")
-        circuli_dets["x_center"] = (circuli_dets["xmin"] + circuli_dets["xmax"]) / 2
-        circuli_dets["y_center"] = (circuli_dets["ymin"] + circuli_dets["ymax"]) / 2
-        # detections are sorted by x within each transect (see detections_as_df)
-        circuli_dets["spacing_px"] = circuli_dets.groupby("img_id")["x_center"].diff()
-        circuli_dets = circuli_dets.rename(columns={"detection_nr": "circulus_nr"})
+        else:
+            ## --- 5. Circuli detections (model for non-padded images, for conf thresh of 0.3)
+            logger.info("Gearing up circuli detector")
+            circuli_dets = detect(
+                img_dir=str(paths.transects),
+                weights=WEIGHTS["circuli"],
+                classes_file=CLASS_FILES["circuli"],
+                no_det_dir=str(paths.no_detections / "circuli"),
+                yolo_max_boxes=args["transect_max_boxes"],
+                plot_dir=str(paths.circuli_plots) if args["plot_dets"] else None,
+                per_image_dir=str(paths.per_image / "circuli") if per_image else None,
+                draw_det_num=True,
+                fig_w=100,
+                fig_h=5,
+                **CIRCULI_MODEL,
+            )
+            logger.info("Finished circuli detection")
+            transect_ids = circuli_dets["img_id"].unique().tolist()
 
-        ## --- 7. Sanity checks on circuli detections and spacings
-        logger.info("Running sanity checks on circuli detections and spacings...")
-        circuli_checks(circuli_dets, args["transect_max_boxes"])
+            ## --- 6. Calculate circuli spacings
+            logger.info("Calculating intracirculus spacings (in pixels)")
+            circuli_dets["x_center"] = (circuli_dets["xmin"] + circuli_dets["xmax"]) / 2
+            circuli_dets["y_center"] = (circuli_dets["ymin"] + circuli_dets["ymax"]) / 2
+            # detections are sorted by x within each transect (see detections_as_df)
+            circuli_dets["spacing_px"] = circuli_dets.groupby("img_id")["x_center"].diff()
+            circuli_dets = circuli_dets.rename(columns={"detection_nr": "circulus_nr"})
 
-        ## --- 8. Position of each circulus on the scale image
-        found = circuli_dets.dropna(subset=["score"]).rename(columns={"img_id": "transect_id"})
-        found = found.astype({c: int for c in ("circulus_nr", "xmin", "ymin", "xmax", "ymax")})
-        circuli = circuli_on_scale(found, focus_by_scale(focus)).reindex(columns=CIRCULI_COLUMNS)
+            ## --- 7. Sanity checks on circuli detections and spacings
+            logger.info("Running sanity checks on circuli detections and spacings...")
+            circuli_checks(circuli_dets, args["transect_max_boxes"])
 
-        circuli_summary_stats = circuli_dets[["score", "spacing_px"]].describe(percentiles=[0.05, .5, .95])
-        circuli_summary_stats = circuli_summary_stats.rename(columns={"score": "det_conf_score"})
-        circuli_summary_stats = circuli_summary_stats.round({"det_conf_score": 4, "spacing_px": 2})
+            ## --- 8. Position of each circulus on the scale image
+            found = circuli_dets.dropna(subset=["score"]).rename(columns={"img_id": "transect_id"})
+            found = found.astype({c: int for c in ("circulus_nr", "xmin", "ymin", "xmax", "ymax")})
+            circuli = circuli_on_scale(found, focus_by_scale(focus)).reindex(columns=CIRCULI_COLUMNS)
+
+            circuli_summary_stats = circuli_dets[["score", "spacing_px"]].describe(percentiles=[0.05, .5, .95])
+            circuli_summary_stats = circuli_summary_stats.rename(columns={"score": "det_conf_score"})
+            circuli_summary_stats = circuli_summary_stats.round({"det_conf_score": 4, "spacing_px": 2})
 
     else:
         logger.warning("Focus detector failed to locate focus in any of the provided scale images - "
@@ -454,8 +463,6 @@ def main():
         handlers=(console_handler, file_handler)
         )
 
-    global logger
-    logger = logging.getLogger(__name__)
     logger.info("Run folder: %s", paths.root)
 
     # --------------------------------------- #

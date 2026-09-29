@@ -98,12 +98,14 @@ uv add requests
      │     │     │     ├─── focus.csv               focus position per scale
      │     │     │     ├─── scales_summary.csv      per scale: focus found?, transects, circuli,
      │     │     │     │                             median spacing, transects without circuli
-     │     │     │     └─── per_image               (if --dets_separate_files True)
+     │     │     │     └─── per_image               focus/, circuli/: one txt per image
+     │     │     │                                  (if --dets_separate_files True)
      │     │     ├─── overlays                      <scale>_overlay.jpg (overlay_detections.py)
      │     │     ├─── qc
      │     │     │     ├─── focus_plots             focus detections drawn on each scale
      │     │     │     ├─── circuli_plots           circuli detections drawn on each transect
-     │     │     │     └─── no_detections           scales without focus / transects without circuli
+     │     │     │     └─── no_detections           focus/: scales without focus,
+     │     │     │                                  circuli/: transects without circuli
      │     │     └─── work
      │     │           ├─── scales                  8-bit RGB jpeg copies of the input scales
      │     │           └─── transects               the transect images (e.g. for annotating)
@@ -116,6 +118,9 @@ uv add requests
                  └─── plots                          detections vs annotations per image
   ```
 
+  If a folder of that name already exists (e.g. two runs with the same name in the same
+  minute), `-2`, `-3`, ... is appended.
+
   `work/` holds most of a run's size. It can be deleted once you've picked any transect images
   you want to annotate for an evaluation; `overlay_detections.py` then draws on the original
   images from the run's input folder instead (if they're still there).
@@ -125,6 +130,11 @@ uv add requests
   circulus on the transect), `dist_from_focus_px` (along the transect), `x_px`/`y_px` (centre of
   the detection on the scale image) and `xmin`/`ymin`/`xmax`/`ymax` (detection box in the
   transect image). All distances are in pixels of the original scale image.
+
+  `results/focus.csv` columns: `scale_id`, `class_name`, `score`, `xmin`/`ymin`/`xmax`/`ymax`
+  (focus box) and `x_px`/`y_px` (focus centre), for scales where a focus was found.
+  `results/scales_summary.csv` lists every input scale: `focus_found`, `focus_score`,
+  `n_transects`, `n_circuli`, `median_spacing_px` and `transects_without_circuli` (angles).
 
 ### Quick start: run the bundled example
 
@@ -181,7 +191,7 @@ uv add requests
 | `--img_dir`    | Directory containing the scale images: `.tif`/`.tiff`/`.jpg`/`.jpeg` (any case; 8/16-bit, greyscale or colour) | str  |      |
 | `--run_name`   | Optional name appended to the run folder, e.g. `N-Esk-2018` | str  |      |
 | `--output_root` | Root folder for all outputs | str  | `$SSCD_OUTPUT_ROOT`, else `~/sscd_outputs` |
-| `--run_dir`    | Write the run to exactly this new (or empty) folder instead of a dated folder under the output root | str  |      |
+| `--run_dir`    | Write the run to exactly this new (or empty) folder instead of a dated folder under the output root (`--run_name`/`--output_root` are then ignored) | str  |      |
 | `--transect_angles` | Choice of angle(s) for radial transects in degrees (0-360)  | int (spaced) | `0 45 90 135 180` |
 | `--plot_dets`    | Save images with the detections drawn on them (`qc/`), for visual inspection | bool (`True`/`False`)  | `True` |
 | `--dets_separate_files` | Also write the detections of each image to a separate txt file (`results/per_image/`) | bool (`True`/`False`) | `False` |
@@ -234,12 +244,12 @@ uv run python eval_detector.py --img_dir "./data/eval_example/imgs/" --anns_dir 
 | Argument     | Description                                             | Type          | Default  |
 |--------------|---------------------------------------------------------|---------------|----------|
 | `--img_dir`  | Directory path to images for evaluation. Expects JPEG images | str    |          |
-| `--anns_dir` | Directory path to annotation files. Expects XML files with Pascal VOC format  | str  |       |
+| `--anns_dir` | Directory path to annotation files: Pascal VOC XML files (or evaluator `.txt` files, e.g. from `annotations_xml_to_txt.py`) | str  |       |
 | `--dets_csv` | Detections to evaluate: a run's `results/circuli.csv` (or `results/focus.csv`), or a CSV with `img_id`, `class_name`, `score`, `xmin`, `ymin`, `xmax`, `ymax` columns | str | |
 | `--iou_threshould` | IOU threshold (IOU<sub>thresh</sub>) determining if a detection is TP or FP (see "Metrics" section bellow) | float  | `0.5`  |
 | `--eval_name` | Optional name appended to the evaluation folder | str |  |
 | `--output_root` | Root folder for all outputs | str | `$SSCD_OUTPUT_ROOT`, else `~/sscd_outputs` |
-| `--eval_dir` | Write the evaluation to exactly this new (or empty) folder | str |  |
+| `--eval_dir` | Write the evaluation to exactly this new (or empty) folder (`--eval_name`/`--output_root` are then ignored) | str |  |
 | `--plot_dets_vs_anns` | Option to generate image plots contrasting detections with annotations | bool   | `True` |
 | `--sep_plots` | Option to produce separate plots for detections and annotations. If `False` draw both in the same plot (recommended for focus detections) | bool  | `False`  |
 | `--get_details` | Also write per-detection and per-annotation evaluation details | bool  | `False`  |

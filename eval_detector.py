@@ -65,6 +65,9 @@ from sscd_libs.evaluation import evaluate
 
 
 
+logger = logging.getLogger(__name__)
+
+
 # ------------------------------------------------------------------------------
 def FileNotFound_logAndOut(msg):
     """
@@ -191,15 +194,13 @@ def main():
         handlers=(console_handler, file_handler)
         )
     
-    global logger
-    logger = logging.getLogger(__name__)
     logger.info("Evaluation folder: %s", paths.root)
 
     info = {
         "status": "running",
         "started": datetime.now().isoformat(timespec="seconds"),
         "inputs": {k: str(Path(args[k]).resolve()) for k in ("img_dir", "anns_dir", "dets_csv")},
-        "parameters": {"iou_threshould": args["iou_threshould"]},
+        "parameters": {k: args[k] for k in ("iou_threshould", "plot_dets_vs_anns", "sep_plots", "get_details")},
         "code": code_version(),
         "environment": environment(),
     }
@@ -475,6 +476,7 @@ def run():
             info.update(status="failed", finished=datetime.now().isoformat(timespec="seconds"),
                         error=f"{type(err).__name__}: {err}")
             write_info(_current_eval["paths"].info, info)
+            clean_output_dir(_current_eval["paths"].temp)
         raise
 
 

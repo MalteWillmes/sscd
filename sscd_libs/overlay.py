@@ -56,21 +56,24 @@ def circuli_on_scale(circuli, focus_by_scale):
 
 
 # ------------------------------------------------------------------------------
-def draw_overlay(scale_img_path, focus_bbox, angles, circuli, out_path, label_every=0):
+def draw_overlay(scale_img, focus_bbox, angles, circuli, out_path, label_every=0):
     """
     Draw focus, transect outlines and a tick across the transect at each circulus.
 
     Args
     ----
-        scale_img_path: the scale image (jpeg as processed by sscd.py)
+        scale_img: the scale image - a path (jpeg as processed by sscd.py) or a PIL image
         focus_bbox: dict with xmin, ymin, xmax, ymax of the focus
         angles: transect angles (degrees) that were extracted for this scale
         circuli: this scale's rows of results/circuli.csv
         out_path: where to write the overlay jpeg
         label_every: number every n-th circulus (0 = no numbers)
     """
-    with Image.open(scale_img_path) as im:
-        im = im.convert("RGB")
+    if isinstance(scale_img, Image.Image):
+        im = scale_img.convert("RGB")
+    else:
+        with Image.open(scale_img) as im:
+            im = im.convert("RGB")
     width, height = im.size
     draw = ImageDraw.Draw(im)
 

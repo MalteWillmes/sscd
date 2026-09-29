@@ -18,12 +18,45 @@ Writes <run folder>/overlays/<scale>_overlay.jpg (re-running overwrites them).
 import argparse
 import json
 import logging
+from pathlib import Path
+
+# import installed packages
+from PIL import Image
 
 # import local modules
+from sscd_libs.data_processing import list_input_images, to_8bit_rgb
 from sscd_libs.outputs import latest_run, open_run
 from sscd_libs.overlay import draw_overlay, focus_by_scale, read_results_csv
 
 logger = logging.getLogger(__name__)
+
+
+# ------------------------------------------------------------------------------
+_originals = {}  # input dir -> {scale id: original image path}
+
+
+def scale_image(run, input_dir, scale_id):
+    """
+    The scale image to draw on: the run's jpeg copy in work/scales, or - if work/
+    was deleted - the original input image, converted the same way sscd.py does.
+    """
+    work_copy = run.scales / f"{scale_id}.jpg"
+    if work_copy.exists():
+        return work_copy
+    if input_dir not in _originals:
+        try:
+            _originals[input_dir] = {Path(p).stem: p for p in list_input_images(input_dir)}
+        except (FileNotFoundError, OSError):
+            _originals[input_dir] = {}
+    original = _originals[input_dir].get(scale_id)
+    if original is None:
+        raise FileNotFoundError(
+            f"Scale image '{scale_id}' not found: neither {work_copy} nor an original in the run's "
+            f"input folder {input_dir}."
+        )
+    with Image.open(original) as im:
+        im.load()  # read the pixels before the file is closed
+        return to_8bit_rgb(im)
 
 
 # ------------------------------------------------------------------------------
@@ -61,7 +94,7 @@ def main():
     run.overlays.mkdir(exist_ok=True)
     for scale_id, focus_bbox in focus.items():
         scale_circuli = circuli[circuli["scale_id"] == scale_id]
-        draw_overlay(run.scales / f"{scale_id}.jpg", focus_bbox, angles, scale_circuli,
+        draw_overlay(scale_image(run, info["input_dir"], scale_id), focus_bbox, angles, scale_circuli,
                      run.overlays / f"{scale_id}_overlay.jpg", label_every=args.label_every)
         logger.info("%s: %d circuli", scale_id, len(scale_circuli))
 

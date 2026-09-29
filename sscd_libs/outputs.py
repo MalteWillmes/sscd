@@ -11,7 +11,8 @@ the SSCD_OUTPUT_ROOT environment variable or --output_root):
             results/   circuli.csv, focus.csv, scales_summary.csv
             overlays/  <scale>_overlay.jpg         (overlay_detections.py)
             qc/        focus_plots/, circuli_plots/, no_detections/
-            work/      scales/, transects/         intermediate images (safe to delete)
+            work/      scales/, transects/         intermediate images (deletable; overlays
+                                                   then use the original input images)
         evaluations/<YYYY-MM-DD_HHMM>[_<name>]/   one folder per eval_detector.py run
             eval_info.json, eval.log, results/, plots/
 

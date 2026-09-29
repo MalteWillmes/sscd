@@ -96,8 +96,7 @@ uv add requests
      │     │     │     └─── no_detections           scales without focus / transects without circuli
      │     │     └─── work
      │     │           ├─── scales                  8-bit RGB jpeg copies of the input scales
-     │     │           └─── transects               the transect images (e.g. for annotating);
-     │     │                                         work/ can be deleted to save space
+     │     │           └─── transects               the transect images (e.g. for annotating)
      │     └─── ...
      └─── evaluations
            └─── 2026-10-02_1030_circuli-vs-Bruno    one folder per eval_detector.py run
@@ -106,6 +105,10 @@ uv add requests
                  │                                   circulus_PRC.png
                  └─── plots                          detections vs annotations per image
   ```
+
+  `work/` holds most of a run's size. It can be deleted once you've picked any transect images
+  you want to annotate for an evaluation; `overlay_detections.py` then draws on the original
+  images from the run's input folder instead (if they're still there).
 
   `results/circuli.csv` columns: `scale_id`, `transect_id` (`<scale id>_<angle>`), `angle_deg`,
   `circulus_nr` (from the focus outwards), `class_name`, `score`, `spacing_px` (to the previous

@@ -29,13 +29,14 @@ line, evaluation and development.
    - [How to run SSCD](#how-to-run-sscd)
    - [Evaluating SSCD's performance](#evaluating-sscds-performance)
    - [SSCD Training](#sscd-training)
+   - [Development](#development)
 
 
 ## Prerequisites
 
 In order to install and use SSCD the following programmes are required to be installed:
-  - [uv](https://docs.astral.sh/uv/getting-started/installation/)
-  - [Git][2]
+  - [uv](https://docs.astral.sh/uv/getting-started/installation/) (it also installs a suitable Python if needed)
+  - [Git][2] (optional: you can also download the repository as a ZIP file from GitHub)
 
 
 ## Installation
@@ -43,7 +44,7 @@ In order to install and use SSCD the following programmes are required to be ins
 #### 1. Clone the SSCD code repository
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/MalteWillmes/sscd.git
 cd sscd
 ```
 
@@ -59,7 +60,8 @@ uv sync --dev --extra gui
 line. Use the same command whenever you update the environment, otherwise `uv sync` removes
 them again.)
 
-Windows notes:
+Windows notes (`start_sscd.bat` takes care of both automatically, by keeping its environment in
+`%LOCALAPPDATA%\sscd\envs\` - separate from the `.venv` used by the commands below):
 
 - Keep the repository in a folder with a reasonably short path. Some TensorFlow files have
   ~150-character paths inside the environment, and Windows' 260-character path limit then
@@ -67,6 +69,8 @@ Windows notes:
   [long paths are enabled](https://learn.microsoft.com/windows/win32/fileio/maximum-file-path-limitation).
 - In a Dropbox/OneDrive folder, `uv` may fail with "incompatible hardlinks": set
   `setx UV_LINK_MODE copy` once (then open a new terminal), or add `--link-mode=copy`.
+- Alternatively keep the environment outside the repository, like the start script does: set
+  `UV_PROJECT_ENVIRONMENT` to a short folder, e.g. `setx UV_PROJECT_ENVIRONMENT "%LOCALAPPDATA%\sscd\venv"`.
 
 #### 3. Download YOLOv3 weights for focus and circuli detectors
 
@@ -86,8 +90,9 @@ Windows notes:
 The SSCD's environment should be updated if project dependencies change (e.g. in `pyproject.toml`).
 Once the most recent version has been pulled to the local repository, update the SSCD environment with:
 ```bash
-uv sync --dev
+uv sync --dev --extra gui
 ```
+(`start_sscd.bat` / `start_sscd.sh` do this for their own environment on every start.)
 
 #### 5. How to install a package
 Run `uv add <package-name>` to install a package. For example:
@@ -105,7 +110,8 @@ uv add requests
   - default: `sscd_outputs` in your home folder (e.g. `C:\Users\<you>\sscd_outputs`)
   - to change it permanently, set the `SSCD_OUTPUT_ROOT` environment variable
     to an absolute path (Windows: `setx SSCD_OUTPUT_ROOT "D:\SSCD results"`, then open a new
-    terminal / restart VS Code);
+    terminal / restart VS Code), or set `output_root` in the optional settings file (see
+    [Web app](#web-app-gui));
     for a single run, pass `--output_root`
 
   ```
@@ -123,6 +129,8 @@ uv add requests
      │     │     │     └─── per_image               focus/, circuli/: one txt per image
      │     │     │                                  (if --dets_separate_files True)
      │     │     ├─── progress.json                 live progress, counts and warnings (for the GUI)
+     │     │     ├─── console.log, STOP             (runs started from the GUI: console output; a
+     │     │     │                                  STOP file appears when a stop was requested)
      │     │     ├─── overlays                      <scale>_overlay.jpg (--overlays / overlay_detections.py)
      │     │     ├─── qc
      │     │     │     ├─── focus_plots             focus detections drawn on each scale
@@ -183,7 +191,8 @@ uv add requests
   Overlays are drawn at the end of each run by default (`overlay_detections.py` can still add
   or redraw them later). A run is an ordinary `sscd.py` run in its own process: it keeps going
   if you close the browser tab, and the app's *Recent runs* list shows it again. Only one run
-  executes at a time; further runs wait in a queue.
+  executes at a time per output root - including runs started from the command line; further
+  runs wait in a queue (status *queued*).
 
   **Settings (e.g. for a shared server).** An optional settings file, `~/.sscd/settings.toml`
   (or the file named by the `SSCD_SETTINGS` environment variable), can fix the output root,
@@ -258,7 +267,7 @@ uv add requests
 | `--run_name`   | Optional name appended to the run folder, e.g. `N-Esk-2018` | str  |      |
 | `--output_root` | Root folder for all outputs | str  | `$SSCD_OUTPUT_ROOT`, else `~/sscd_outputs` |
 | `--run_dir`    | Write the run to exactly this new (or empty) folder instead of a dated folder under the output root (`--run_name`/`--output_root` are then ignored) | str  |      |
-| `--transect_angles` | Choice of angle(s) for radial transects in degrees (0-360)  | int (spaced) | `0 45 90 135 180` |
+| `--transect_angles` | Angle(s) of the radial transects from the focus, in degrees (0-359; 0 = right, 90 = up) | int (spaced) | `0 45 90 135 180` |
 | `--plot_dets`    | Save images with the detections drawn on them (`qc/`), for visual inspection | bool (`True`/`False`)  | `True` |
 | `--dets_separate_files` | Also write the detections of each image to a separate txt file (`results/per_image/`) | bool (`True`/`False`) | `False` |
 | `--transect_max_boxes` | Maximum number of detections per transect image              | int    | `200`  |
@@ -281,7 +290,7 @@ circulus, one colour per transect (labelled with its angle).
 
 | Argument        | Description                                                  | Type | Default |
 |-----------------|--------------------------------------------------------------|------|---------|
-| `--run_dir` / `--latest` | A run folder, or the most recent run under the output root | str / flag |  |
+| `--run_dir` / `--latest` | A run folder, or the most recently started completed run under the output root | str / flag |  |
 | `--output_root` | Output root to look for `--latest` in                        | str  | as for `sscd.py` |
 | `--label_every` | Number every n-th circulus on the overlay (0: no numbers)    | int  | `0`     |
 
@@ -310,7 +319,7 @@ uv run python eval_detector.py --img_dir "./data/eval_example/imgs/" --anns_dir 
 
 | Argument     | Description                                             | Type          | Default  |
 |--------------|---------------------------------------------------------|---------------|----------|
-| `--img_dir`  | Directory path to images for evaluation. Expects JPEG images | str    |          |
+| `--img_dir`  | Directory path to images for evaluation (`.jpg`, e.g. transect images from a run's `work/transects`) | str    |          |
 | `--anns_dir` | Directory path to annotation files: Pascal VOC XML files (or evaluator `.txt` files, e.g. from `annotations_xml_to_txt.py`) | str  |       |
 | `--dets_csv` | Detections to evaluate: a run's `results/circuli.csv` (or `results/focus.csv`), or a CSV with `img_id`, `class_name`, `score`, `xmin`, `ymin`, `xmax`, `ymax` columns | str | |
 | `--iou_threshould` | IOU threshold (IOU<sub>thresh</sub>) determining if a detection is TP or FP (see "Metrics" section bellow) | float  | `0.5`  |
@@ -369,7 +378,9 @@ This [page][8] provides details on how to set up a workstation for (re)training 
 ## Development
 
 ### Update from template
-To update your project with the latest changes from the template, run:
+To update your project with the latest changes from the template, run the command below (note:
+`.copier-answers.yml` still says `notebook: true`, so an update may try to add Jupyter files
+again - this fork no longer uses notebooks):
 ```bash
 uvx --with copier-template-extensions copier update --trust
 ```

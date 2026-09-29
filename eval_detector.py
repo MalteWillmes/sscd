@@ -241,11 +241,31 @@ def main():
         dets = pd.read_csv(args["dets_csv"], dtype={"img_id": str, "transect_id": str, "scale_id": str})
     except FileNotFoundError:
         FileNotFound_logAndOut("No such file or directory: {}".format(args["dets_csv"]))
-    # a run's results/circuli.csv (or focus.csv) names the image column differently
+    # A run's results/circuli.csv (or focus.csv) names the image column differently,
+    # and only lists images WITH detections: find which images the run processed,
+    # so images without detections count as zero detections rather than as missing.
+    processed_ids = None
     if "img_id" not in dets:
-        dets = dets.rename(columns={"transect_id": "img_id"} if "transect_id" in dets else {"scale_id": "img_id"})
+        is_circuli = "transect_id" in dets
+        dets = dets.rename(columns={"transect_id": "img_id"} if is_circuli else {"scale_id": "img_id"})
+        run_dir = Path(args["dets_csv"]).resolve().parent.parent
+        if is_circuli and (run_dir / "work" / "transects").is_dir():
+            processed_ids = {p.stem for p in (run_dir / "work" / "transects").glob("*.jpg")}
+        elif not is_circuli and (run_dir / "results" / "scales_summary.csv").is_file():
+            processed_ids = set(pd.read_csv(run_dir / "results" / "scales_summary.csv",
+                                            dtype={"scale_id": str})["scale_id"])
+        else:
+            logger.warning("Run folder of %s not found: images without detections in it are "
+                           "assumed to have none", args["dets_csv"])
+            processed_ids = set(img_ids)
 
     det_ids = dets.img_id.unique().tolist()
+    if processed_ids is not None:
+        no_dets = [x for x in img_ids if x in processed_ids and x not in set(det_ids)]
+        if no_dets:
+            logger.info("No detections in the run for %d image(s) - counted as zero detections:"
+                        "\n\n\t%s\n", len(no_dets), unpack_for_string(no_dets))
+        det_ids = det_ids + no_dets
 
     
 
@@ -364,7 +384,7 @@ def main():
             img_orig = mpimg.imread(img_filepath)
             
             # detections in current image
-            img_dets = dets.query('img_id == @img_id')
+            img_dets = dets.query('img_id == @img_id').dropna(subset=["score"])
             
             # read in annotation txt file for current image
             img_anns = pd.read_csv(os.path.join(anns_temp_dir, img_id + ".txt"), 
@@ -379,8 +399,9 @@ def main():
                 draw_ann = True, 
                 anns = img_anns, 
                 anns_sepPlot = args["sep_plots"], 
-                plot_conf = True, 
-                draw_det_num = True
+                plot_conf = True,
+                draw_det_num = True,
+                img_id = img_id
                 )
                         
             ## end of loop

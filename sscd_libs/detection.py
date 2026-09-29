@@ -132,6 +132,7 @@ def plot_detections(
     draw_det_num=False,
     fig_w=None,
     fig_h=None,
+    img_id=None,
 ):
     """
     Generate image plot(s) with detections, and optionally annotations, drawn in a target image
@@ -166,6 +167,9 @@ def plot_detections(
         figure width of the image plot. The default is 30.
     fig_h : TYPE, optional
         figure height of the image plot. The default is 30.
+    img_id : str, optional
+        image ID used to name the plot file; required when `dets` is empty
+        (defaults to the img_id of the detections)
 
     Raises
     ------
@@ -180,7 +184,6 @@ def plot_detections(
 
     if draw_ann and anns is None:
         raise ValueError("Missing annotations data to plot against detections")
-        logging.shutdown()
 
     # calculate centers, widths & heights of detections
     dets = dets.assign(
@@ -326,7 +329,7 @@ def plot_detections(
         imgfile_label = "detections"
 
     plt.savefig(
-        os.path.join(output_dir, f"{dets.img_id.iloc[0]}_{imgfile_label}.jpg"),
+        os.path.join(output_dir, f"{img_id or dets.img_id.iloc[0]}_{imgfile_label}.jpg"),
         bbox_inches="tight",
         pad_inches=0,
     )

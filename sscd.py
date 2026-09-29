@@ -36,7 +36,9 @@ from time import time
 # import installed/3rd-party modules
 import logging
 from tqdm import tqdm
+import numpy as np
 import pandas as pd
+from PIL import Image
 
 
 # import local modules
@@ -50,10 +52,12 @@ from sscd_libs.overlay import circuli_on_scale, draw_run_overlays, focus_by_scal
 from sscd_libs.runcontrol import RunControl, RunSlot, StopRequested
 from sscd_libs.settings import load_settings
 
-from sscd_libs.detection import detect
+from sscd_libs.detection import detect, plot_detections
+from sscd_libs.focus_retry import retry_focus
 
 from sscd_libs.data_processing import (
     images_tiff_to_jpeg,
+    find_duplicate_images,
     list_input_images,
     get_transects
     )
@@ -215,7 +219,7 @@ def circuli_checks(circuli_dets_df, circuli_max_boxes):
 # ------------------------------------------------------------------------------
 CIRCULI_COLUMNS = ["scale_id", "transect_id", "angle_deg", "circulus_nr", "class_name", "score",
                    "spacing_px", "dist_from_focus_px", "x_px", "y_px", "xmin", "ymin", "xmax", "ymax"]
-FOCUS_COLUMNS = ["scale_id", "class_name", "score", "xmin", "ymin", "xmax", "ymax", "x_px", "y_px"]
+FOCUS_COLUMNS = ["scale_id", "class_name", "score", "focus_method", "xmin", "ymin", "xmax", "ymax", "x_px", "y_px"]
 
 FOCUS_MODEL = {"input_width": 1376, "input_height": 1376, "yolo_score_threshold": 0.5, "yolo_max_boxes": 100}
 CIRCULI_MODEL = {"input_width": 3904, "input_height": 64, "yolo_score_threshold": 0.3}
@@ -226,6 +230,7 @@ def scales_summary(scale_ids, focus, transect_ids, circuli):
     t_scale, t_angle = (split_transect_ids(pd.Series(transect_ids, dtype=str))
                         if len(transect_ids) else (pd.Series(dtype=str), pd.Series(dtype=int)))
     focus_score = dict(zip(focus["scale_id"], focus["score"], strict=True))
+    focus_method = dict(zip(focus["scale_id"], focus["focus_method"], strict=True))
     rows = []
     for scale_id in scale_ids:
         c = circuli[circuli["scale_id"] == scale_id]
@@ -235,6 +240,8 @@ def scales_summary(scale_ids, focus, transect_ids, circuli):
             "scale_id": scale_id,
             "focus_found": scale_id in focus_score,
             "focus_score": focus_score.get(scale_id),
+            # standard, or found in the second pass: padded / low_threshold
+            "focus_method": focus_method.get(scale_id),
             "n_transects": len(angles),
             "total_n_circuli": len(c),
             # per transect with at least one circulus (transects without circuli are not
@@ -249,12 +256,51 @@ def scales_summary(scale_ids, focus, transect_ids, circuli):
     return pd.DataFrame(rows)
 
 
+def second_focus_pass(args, paths, control, focus_found, missed):
+    """Look again for the focus in the `missed` scales; returns the updated
+    (focus_found, missed). Rescued scales keep focus_method 'padded'/'low_threshold'."""
+    logger.info("Second focus pass for %d scale(s) without a focus", len(missed))
+    control.start_stage("focus_retry", len(missed))
+
+    def detect_focus(img_dir, no_det_dir, threshold, progress):
+        return detect(img_dir=img_dir, weights=WEIGHTS["focus"], classes_file=CLASS_FILES["focus"],
+                      no_det_dir=no_det_dir, input_width=FOCUS_MODEL["input_width"],
+                      input_height=FOCUS_MODEL["input_height"],
+                      yolo_score_threshold=threshold or FOCUS_MODEL["yolo_score_threshold"],
+                      yolo_max_boxes=5, report_no_detections=False, progress=progress)
+
+    rescued = retry_focus(missed, paths.scales, paths.work / "focus_retry", detect_focus,
+                          args["focus_low_threshold"], progress=control.progress_callback())
+    if len(rescued) == 0:
+        return focus_found, missed
+
+    for row in rescued.itertuples():
+        # no longer a scale without detections
+        (paths.no_detections / "focus" / f"{row.img_id}.jpeg").unlink(missing_ok=True)
+        if args["plot_dets"]:
+            with Image.open(paths.scales / f"{row.img_id}.jpg") as im:
+                plot_detections(np.asarray(im.convert("RGB")), rescued[rescued["img_id"] == row.img_id],
+                                str(paths.focus_plots), fig_w=65, fig_h=60)
+    logger.warning(
+        "Focus found only in the second pass for %d scale(s) - check them (focus_method in focus.csv and "
+        "scales_summary.csv):\n\n\t%s\n", len(rescued),
+        unpack_for_string(f"{r.img_id} ({r.focus_method}, score {r.score:.2f})" for r in rescued.itertuples()))
+    focus_found = pd.concat([focus_found, rescued], ignore_index=True)
+    return focus_found, [s for s in missed if s not in set(rescued["img_id"])]
+
+
 def run_pipeline(args, paths, control):
     """Detection pipeline for one run; writes into the run folder `paths` and reports
     progress through `control` (RunControl). Returns counts."""
 
     per_image = args["dets_separate_files"]
-    n_images = len(list_input_images(args["img_dir"]))
+    input_images = list_input_images(args["img_dir"])
+    n_images = len(input_images)
+    duplicates = find_duplicate_images(input_images)
+    if duplicates:
+        logger.warning("%d image(s) are identical copies of another image and are processed (and counted) "
+                       "twice:\n\n\t%s\n", sum(len(g) - 1 for g in duplicates),
+                       unpack_for_string(" = ".join(Path(p).name for p in g) for g in duplicates))
 
     ## --- 1. Convert image files to jpeg format (work/scales)
     control.start_stage("convert", n_images)
@@ -274,12 +320,24 @@ def run_pipeline(args, paths, control):
         fig_w=65,
         fig_h=60,
         progress=control.progress_callback(),
+        # with a second pass, scales without focus are reported after it
+        report_no_detections=not args["focus_retry"],
         **FOCUS_MODEL,
     )
     logger.info("Finished focus detection")
 
     scale_ids = focus_dets["img_id"].tolist()   # every scale, with or without focus
-    focus_found = focus_dets.dropna(subset=["score"])
+    focus_found = focus_dets.dropna(subset=["score"]).assign(focus_method="standard")
+    missed = [s for s in scale_ids if s not in set(focus_found["img_id"])]
+
+    ## --- 2b. Second pass, only for scales without a focus: padded to the training
+    ##         aspect ratio, then a lower score threshold (see sscd_libs/focus_retry.py)
+    if args["focus_retry"] and missed:
+        focus_found, missed = second_focus_pass(args, paths, control, focus_found, missed)
+    if missed:
+        logger.warning("No focus found in %d scale image(s) - no circuli are detected on them:\n\n\t%s\n\n"
+                       "\tImage(s) saved to %s\n", len(missed), unpack_for_string(missed),
+                       paths.no_detections / "focus")
     control.counts.update(scales=len(scale_ids), focus_found=len(focus_found))
 
     focus = focus_found.rename(columns={"img_id": "scale_id"})
@@ -462,6 +520,21 @@ def main():
         help="also draw the circuli onto the scale images at the end (overlays/); the same as "
         "running overlay_detections.py afterwards",
     )
+    args_parser.add_argument(
+        "--focus_retry",
+        required=False,
+        type=boolean_string,
+        default=True,
+        help="second focus pass for scales without a focus: padded to the training images' aspect "
+        "ratio, then with --focus_low_threshold (rescued scales are flagged in focus_method)",
+    )
+    args_parser.add_argument(
+        "--focus_low_threshold",
+        required=False,
+        type=float,
+        default=0.1,
+        help="score threshold of the second focus pass's last step (0: skip that step)",
+    )
     args = vars(args_parser.parse_args())
 
     # --------------------------------------- #
@@ -507,7 +580,8 @@ def main():
         "created": datetime.now().isoformat(timespec="seconds"),
         "input_dir": str(Path(args["img_dir"]).resolve()),
         "parameters": {k: args[k] for k in ("transect_angles", "transect_max_boxes", "plot_dets",
-                                            "dets_separate_files", "overlays")},
+                                            "dets_separate_files", "overlays", "focus_retry",
+                                            "focus_low_threshold")},
         "models": {
             "focus": {"weights": Path(WEIGHTS["focus"]).name, **FOCUS_MODEL},
             "circuli": {"weights": Path(WEIGHTS["circuli"]).name, **CIRCULI_MODEL,

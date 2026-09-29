@@ -50,3 +50,16 @@ def test_allowed_input_roots(tmp_path, monkeypatch):
     assert input_dir_allowed(tmp_path / "archive" / "2024", settings)
     assert not input_dir_allowed(tmp_path / "elsewhere", settings)
     assert not input_dir_allowed(tmp_path / "archive" / ".." / "elsewhere", settings)
+
+
+def test_duplicate_images_are_found(tmp_path):
+    from sscd_libs.data_processing import find_duplicate_images
+
+    rng = np.random.default_rng(0)
+    a = Image.fromarray(rng.integers(0, 256, (64, 64, 3), dtype=np.uint8))
+    b = Image.fromarray(rng.integers(0, 256, (64, 64, 3), dtype=np.uint8))
+    a.save(tmp_path / "a.tif")
+    a.save(tmp_path / "a (1).tif")         # identical copy
+    b.save(tmp_path / "b.tif")              # same size, different content
+    groups = find_duplicate_images(sorted(str(p) for p in tmp_path.glob("*.tif")))
+    assert [[p.split("\\")[-1].split("/")[-1] for p in g] for g in groups] == [["a (1).tif", "a.tif"]]

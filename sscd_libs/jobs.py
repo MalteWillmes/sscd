@@ -16,7 +16,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from sscd_libs.data_processing import list_input_images
+from sscd_libs.data_processing import find_duplicate_images, list_input_images
 from sscd_libs.helpers import REPO_DIR
 from sscd_libs.outputs import output_root, reserve_run_dir
 from sscd_libs.runcontrol import (
@@ -59,7 +59,12 @@ def check_input_dir(path, settings):
     except OSError as err:
         return {"ok": False, "message": f"Cannot read folder: {err}"}
     by_ext = collections.Counter(Path(f).suffix.lower() for f in images)
+    try:
+        duplicates = [[Path(f).name for f in group] for group in find_duplicate_images(images)]
+    except OSError:
+        duplicates = []
     return {"ok": True, "path": str(p.resolve()), "n_images": len(images), "by_ext": dict(by_ext),
+            "duplicates": duplicates,
             "message": f"{len(images)} images (" + ", ".join(f"{n} {e}" for e, n in sorted(by_ext.items())) + ")"}
 
 
@@ -90,7 +95,7 @@ def list_subfolders(path):
 
 # ------------------------------------------------------------------------------
 def start_run(input_dir, run_name, angles, settings, overlays=True, plot_dets=True,
-              per_image_files=False, max_circuli=200):
+              per_image_files=False, max_circuli=200, focus_retry=True, focus_low_threshold=0.1):
     """Start sscd.py in a new run folder as an independent process. Returns the run folder."""
     root = output_root(settings.get("output_root"))
     run_dir = reserve_run_dir(root, run_name or None)
@@ -104,6 +109,8 @@ def start_run(input_dir, run_name, angles, settings, overlays=True, plot_dets=Tr
         "--plot_dets", str(bool(plot_dets)),
         "--dets_separate_files", str(bool(per_image_files)),
         "--transect_max_boxes", str(int(max_circuli)),
+        "--focus_retry", str(bool(focus_retry)),
+        "--focus_low_threshold", str(float(focus_low_threshold)),
     ]
     # detached from the GUI process: the run continues if the GUI is closed or restarted
     kwargs = {"start_new_session": True} if os.name != "nt" else {
@@ -193,7 +200,8 @@ def run_state(run_dir, root):
     stages = [
         {"name": name, "label": label, **progress.get("stages", {}).get(name, {"done": 0, "total": 0})}
         for name, label in STAGES.items()
-        if name != "overlays" or info.get("parameters", {}).get("overlays")
+        if (name != "overlays" or info.get("parameters", {}).get("overlays"))
+        and (name != "focus_retry" or name in progress.get("stages", {}))  # only when it ran
     ]
     return {
         "run_dir": str(run_dir),

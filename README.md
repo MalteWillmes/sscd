@@ -113,6 +113,9 @@ uv add requests
     terminal / restart VS Code), or set `output_root` in the optional settings file (see
     [Web app](#web-app-gui));
     for a single run, pass `--output_root`
+  - on Windows, keep the output root short (e.g. `C:\sscd_outputs`) if your image file names
+    are long: output files are named after the image and angle, and a path over 260 characters
+    fails unless [long paths are enabled](https://learn.microsoft.com/windows/win32/fileio/maximum-file-path-limitation)
 
   ```
   <output root>
@@ -162,12 +165,34 @@ uv add requests
   the detection on the scale image) and `xmin`/`ymin`/`xmax`/`ymax` (detection box in the
   transect image). All distances are in pixels of the original scale image.
 
-  `results/focus.csv` columns: `scale_id`, `class_name`, `score`, `xmin`/`ymin`/`xmax`/`ymax`
-  (focus box) and `x_px`/`y_px` (focus centre), for scales where a focus was found.
+  `results/focus.csv` columns: `scale_id`, `class_name`, `score`, `focus_method` (see below),
+  `xmin`/`ymin`/`xmax`/`ymax` (focus box) and `x_px`/`y_px` (focus centre), for scales where a
+  focus was found.
   `results/scales_summary.csv` lists every input scale: `focus_found`, `focus_score`,
-  `n_transects`, `total_n_circuli` (all transects together), `mean_n_circuli` (per transect with
+  `focus_method`, `n_transects`, `total_n_circuli` (all transects together), `mean_n_circuli` (per transect with
   at least one circulus; transects without circuli are not counted), `median_spacing_px` and
   `transects_without_circuli` (angles).
+
+  **Second focus pass.** Scales where the focus detector finds no focus are looked at again
+  (on by default; `--focus_retry False` turns it off):
+
+  1. `padded`: the image is padded with its background colour to the aspect ratio of the
+     training images (3840 x 2748) and detected again. The detector squeezes every image into a
+     square, so wider images (e.g. 16:9) otherwise look more distorted than anything it was
+     trained on.
+  2. `low_threshold`: for scales still without a focus, the best box above a lower score
+     threshold (`--focus_low_threshold`, default 0.1) is used.
+
+  Only the missed scales are retried, so scales found normally (`focus_method` = `standard`)
+  are never changed. Scales rescued this way are listed in the run's warnings and flagged in
+  `focus_method`, so they can be checked (e.g. on the overlays) or excluded. On a batch of 110
+  3840 x 2160 scales, this found the focus in 7 of the 16 scales the normal pass missed (4 padded,
+  3 with the lower threshold); on the other 94 scales the detector produced no box away from the
+  true focus even at a threshold of 0.05.
+
+  **Duplicate images.** Identical image files in the input folder (e.g. `scale.tif` and
+  `scale (1).tif` from copying a file twice) would be processed - and counted - twice. The web
+  app warns about them as soon as the folder is selected, and a run lists them in its warnings.
 
 ### Web app (GUI)
 
@@ -274,6 +299,8 @@ uv add requests
 | `--dets_separate_files` | Also write the detections of each image to a separate txt file (`results/per_image/`) | bool (`True`/`False`) | `False` |
 | `--transect_max_boxes` | Maximum number of detections per transect image              | int    | `200`  |
 | `--overlays` | Also draw the circuli onto the scale images at the end (`overlays/`), like `overlay_detections.py` | bool (`True`/`False`) | `False` (the GUI: on) |
+| `--focus_retry` | Second focus pass for scales without a focus (see [above](#where-results-are-saved)) | bool (`True`/`False`) | `True` |
+| `--focus_low_threshold` | Score threshold of the second pass's last step (`0`: skip it) | float | `0.1` |
 
 
 ### Circuli detections on the original scale image

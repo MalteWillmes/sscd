@@ -12,6 +12,7 @@ Module for utility functions dealing with data/image preparation and processing
 import os
 from pathlib import Path
 import collections
+import hashlib
 import concurrent.futures
 import logging
 import math
@@ -101,6 +102,41 @@ def list_input_images(input_imgs_dir):
         raise ValueError("Several input images share the same file name (ignoring extension): "
                          + ", ".join(duplicates))
     return img_input_fpaths
+
+
+# ------------------------------------------------------------------------------
+def find_duplicate_images(img_filepaths):
+    """
+    Groups of image files with identical content (e.g. 'scale.tif' and 'scale (1).tif'
+    from copying a file twice), which would otherwise be processed - and counted - twice.
+
+    Cheap even for large files on a network share: only files of the same size are
+    compared, first by their start and end, and only remaining candidates in full.
+    Returns a list of groups (lists of paths), each with 2+ identical files.
+    """
+    def digest(path, full):
+        h = hashlib.blake2b(digest_size=16)
+        with open(path, "rb") as f:
+            if full:
+                for chunk in iter(lambda: f.read(1 << 20), b""):
+                    h.update(chunk)
+            else:
+                h.update(f.read(1 << 18))
+                f.seek(max(os.path.getsize(path) - (1 << 18), 0))
+                h.update(f.read(1 << 18))
+        return h.hexdigest()
+
+    def group_by(paths, key):
+        groups = collections.defaultdict(list)
+        for p in paths:
+            groups[key(p)].append(p)
+        return [g for g in groups.values() if len(g) > 1]
+
+    duplicates = []
+    for same_size in group_by(img_filepaths, os.path.getsize):
+        for same_ends in group_by(same_size, lambda p: digest(p, full=False)):
+            duplicates.extend(group_by(same_ends, lambda p: digest(p, full=True)))
+    return [sorted(g) for g in duplicates]
 
 
 # ------------------------------------------------------------------------------

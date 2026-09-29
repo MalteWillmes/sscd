@@ -123,9 +123,21 @@ with st.expander("Browse folders"):
     else:
         st.caption("No sub-folders.")
 
-folder = check_input_dir(st.session_state.img_dir, settings)
+@st.cache_data(ttl=60, show_spinner="Checking the folder...")
+def _check_folder(path, allowed_roots):
+    # cached briefly: the check reads parts of the image files (duplicate detection),
+    # which is slow on a network share if repeated on every click
+    return check_input_dir(path, {**settings, "allowed_input_roots": list(allowed_roots)})
+
+
+folder = _check_folder(st.session_state.img_dir, tuple(settings["allowed_input_roots"]))
 if st.session_state.img_dir.strip():
     (st.success if folder["ok"] else st.error)(folder["message"])
+if folder.get("duplicates"):
+    n = sum(len(g) - 1 for g in folder["duplicates"])
+    listed = "\n".join("- " + " = ".join(f"`{name}`" for name in group) for group in folder["duplicates"])
+    st.warning(f"**{n} image(s) are identical copies of another image in this folder** and would be "
+               f"processed - and counted in the results - twice. Consider removing the copies:\n\n{listed}")
 
 run_name = st.text_input("Run name (optional)", placeholder="e.g. N-Esk-2018",
                          help="Appended to the run folder name: <date>_<time>_<run name>")
@@ -144,11 +156,19 @@ with st.expander("Advanced options"):
                                   value=200, step=10)
     plot_dets = st.checkbox("Save QC images with the detections drawn on each scale and transect", value=True)
     per_image = st.checkbox("Also save the detections of each image as a separate text file", value=False)
+    focus_retry = st.checkbox(
+        "Second focus pass for scales where no focus was found", value=True,
+        help="Retries those scales padded to the aspect ratio of the training images, then accepts the "
+             "best focus above a lower score threshold. Scales found this way are flagged (focus_method).")
+    focus_low_threshold = st.number_input(
+        "Lower score threshold for the second pass", min_value=0.0, max_value=0.5, value=0.1, step=0.05,
+        disabled=not focus_retry, help="0 skips this step (only the padded retry is done)")
 
 can_start = weights_ok and folder["ok"] and angles is not None
 if st.button("Start run", type="primary", disabled=not can_start):
     run_dir = start_run(folder["path"], run_name.strip(), angles, settings, overlays=overlays,
-                        plot_dets=plot_dets, per_image_files=per_image, max_circuli=max_circuli)
+                        plot_dets=plot_dets, per_image_files=per_image, max_circuli=max_circuli,
+                        focus_retry=focus_retry, focus_low_threshold=focus_low_threshold)
     st.query_params["run"] = run_dir.name
     st.rerun()
 

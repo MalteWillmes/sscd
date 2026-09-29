@@ -20,6 +20,7 @@ from pathlib import Path
 STAGES = {
     "convert": "Converting images",
     "focus": "Focus detection",
+    "focus_retry": "Focus: second pass (scales without focus)",
     "transects": "Extracting transects",
     "circuli": "Circuli detection",
     "overlays": "Drawing overlays",

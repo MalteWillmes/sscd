@@ -385,6 +385,7 @@ def detect(
     fig_w=25,
     fig_h=20,
     progress=None,
+    report_no_detections=True,
 ):
     """
     Run one YOLOv3 detector on every jpeg in `img_dir`.
@@ -413,6 +414,8 @@ def detect(
         plot options (number the boxes; figure size in inches)
     progress : callable, optional
         called as progress(done, total) after each image
+    report_no_detections : bool
+        log a warning listing the images without any detection
 
     Returns
     -------
@@ -535,7 +538,7 @@ def detect(
         all_detections = pd.DataFrame()
 
     # Reporting images with no detections
-    if len(no_detections_img_id) > 0:
+    if report_no_detections and len(no_detections_img_id) > 0:
         logger.warning(
             f"Failed to detect {unpack_for_string(class_names)} in {len(no_detections_img_id)} "
             f"image(s):\n\n\t{unpack_for_string(no_detections_img_id)}"

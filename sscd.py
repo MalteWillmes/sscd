@@ -15,7 +15,7 @@ Brief pipeline description:
     
     
 Each run is written to a new folder <output root>/runs/<date>_<time>[_<run name>]
-(output root: --output_root, else $SSCD_OUTPUT_ROOT, else ~/sscd_outputs); see
+(output root: --output_root, else $SSCD_OUTPUT_ROOT, else C:\\sscd_outputs / ~/sscd_outputs); see
 sscd_libs/outputs.py for the folder layout.
 
 Usage:
@@ -470,7 +470,7 @@ def main():
         "--output_root",
         type=str,
         default=None,
-        help="root folder for all SSCD outputs (default: $SSCD_OUTPUT_ROOT, else ~/sscd_outputs)",
+        help="root folder for all SSCD outputs (default: $SSCD_OUTPUT_ROOT, else C:\\sscd_outputs on Windows, ~/sscd_outputs elsewhere)",
     )
     args_parser.add_argument(
         "--run_name",

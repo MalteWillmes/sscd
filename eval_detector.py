@@ -120,7 +120,7 @@ def main():
         "--output_root",
         type=str,
         default=None,
-        help="root folder for all SSCD outputs (default: $SSCD_OUTPUT_ROOT, else ~/sscd_outputs)"
+        help="root folder for all SSCD outputs (default: $SSCD_OUTPUT_ROOT, else C:\\sscd_outputs on Windows, ~/sscd_outputs elsewhere)"
     )
     args_parser.add_argument(
         "--eval_name",

@@ -39,7 +39,7 @@ def main():
                        help="use the most recent completed run under the output root")
     args_parser.add_argument(
         "--output_root", default=None,
-        help="output root to look for --latest in (default: $SSCD_OUTPUT_ROOT, else ~/sscd_outputs)",
+        help="output root to look for --latest in (default: $SSCD_OUTPUT_ROOT, else C:\\sscd_outputs on Windows, ~/sscd_outputs elsewhere)",
     )
     args_parser.add_argument(
         "--label_every", type=int, default=0,

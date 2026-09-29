@@ -1,7 +1,7 @@
 """
 Where SSCD writes its results, and how an output folder is organised.
 
-All runs live under one output root (default: ~/sscd_outputs, change it with
+All runs live under one output root (default: C:\\sscd_outputs on Windows, else ~/sscd_outputs; change it with
 the SSCD_OUTPUT_ROOT environment variable or --output_root):
 
     <output root>/
@@ -35,7 +35,22 @@ from pathlib import Path
 
 from sscd_libs.helpers import REPO_DIR
 
-DEFAULT_OUTPUT_ROOT = Path.home() / "sscd_outputs"
+HOME_OUTPUT_ROOT = Path.home() / "sscd_outputs"
+
+
+def default_output_root():
+    """C:\\sscd_outputs on Windows - a short path, as output file names can be long and
+    Windows limits paths to 260 characters - unless it cannot be created there (locked-down
+    computers); then, and on Linux/macOS, ~/sscd_outputs."""
+    if os.name != "nt":
+        return HOME_OUTPUT_ROOT
+    short = Path(os.environ.get("SystemDrive", "C:") + "\\") / "sscd_outputs"
+    try:
+        short.mkdir(exist_ok=True)
+        return short
+    except OSError:
+        return HOME_OUTPUT_ROOT
+
 
 logger = logging.getLogger(__name__)
 
@@ -43,11 +58,11 @@ logger = logging.getLogger(__name__)
 # ------------------------------------------------------------------------------
 def output_root(override=None):
     """The output root: `override` if given, else $SSCD_OUTPUT_ROOT, else output_root from
-    the settings file (sscd_libs/settings.py), else ~/sscd_outputs."""
+    the settings file (sscd_libs/settings.py), else C:\\sscd_outputs (Windows) or ~/sscd_outputs."""
     from sscd_libs.settings import load_settings
 
     root = (override or os.environ.get("SSCD_OUTPUT_ROOT") or load_settings()["output_root"]
-            or DEFAULT_OUTPUT_ROOT)
+            or default_output_root())
     return Path(root).expanduser().resolve()
 
 
@@ -56,7 +71,7 @@ def _check_outside_repo(path):
     if path == REPO_DIR or REPO_DIR in path.parents:
         raise ValueError(
             f"'{path}' is inside the SSCD code folder ({REPO_DIR}). Keep outputs separate from the "
-            f"code: use the default output root ({DEFAULT_OUTPUT_ROOT}), set SSCD_OUTPUT_ROOT, or "
+            f"code: use the default output root ({default_output_root()}), set SSCD_OUTPUT_ROOT, or "
             "pass another --output_root."
         )
 

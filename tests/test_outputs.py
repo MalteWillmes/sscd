@@ -1,6 +1,8 @@
 """Output folders: naming, never overwriting, keeping outputs out of the repository."""
 
 import json
+import os
+from pathlib import Path
 
 import pytest
 
@@ -43,6 +45,15 @@ def test_output_root_precedence(tmp_path, monkeypatch):
     monkeypatch.setenv("SSCD_OUTPUT_ROOT", str(tmp_path / "env"))
     assert outputs.output_root() == (tmp_path / "env").resolve()
     assert outputs.output_root(tmp_path / "arg") == (tmp_path / "arg").resolve()
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows default")
+def test_default_output_root_is_short_on_windows(tmp_path, monkeypatch):
+    monkeypatch.setenv("SystemDrive", str(tmp_path / "drive"))
+    (tmp_path / "drive").mkdir()
+    assert outputs.default_output_root() == Path(str(tmp_path / "drive") + "\\") / "sscd_outputs"
+    monkeypatch.setenv("SystemDrive", str(tmp_path / "missing"))        # cannot be created there
+    assert outputs.default_output_root() == outputs.HOME_OUTPUT_ROOT
 
 
 def test_latest_run_is_latest_started_completed(output_root):

@@ -19,7 +19,7 @@ import tomllib
 from pathlib import Path
 
 DEFAULTS = {
-    "output_root": None,          # None: $SSCD_OUTPUT_ROOT, else ~/sscd_outputs
+    "output_root": None,          # None: $SSCD_OUTPUT_ROOT, else C:\sscd_outputs / ~/sscd_outputs
     "allowed_input_roots": [],    # empty: any folder
     "max_concurrent_runs": 1,
 }

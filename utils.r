@@ -1,7 +1,7 @@
 #' Wrapper function to run python command-line function "eval_detector.py",
 #' which is part of the SSCD toolkit. Results are written to a new folder
 #' <output root>/evaluations/<date>_<time>[_<eval_name>] (output root: $SSCD_OUTPUT_ROOT,
-#' else ~/sscd_outputs).
+#' else C:\sscd_outputs on Windows, ~/sscd_outputs elsewhere).
 #'
 #' dets_csv can be a run's results/circuli.csv (or results/focus.csv).
 #' Requires the fs and glue packages, and uv on the PATH.

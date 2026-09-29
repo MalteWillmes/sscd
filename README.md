@@ -43,9 +43,10 @@ Re-run `uv sync --dev --extra gui` after pulling changes (plain `uv sync` remove
 
 ## Outputs
 
-Every run gets a new folder; nothing is overwritten. The **output root** is `~/sscd_outputs`
-by default. Change it with the `SSCD_OUTPUT_ROOT` environment variable, `output_root` in the
-[settings file](#settings-shared-server) or `--output_root`.
+Every run gets a new folder; nothing is overwritten. The **output root** is `C:\sscd_outputs`
+by default (`~/sscd_outputs` on Linux/macOS, or if `C:\` is not writable). Change it with the
+`SSCD_OUTPUT_ROOT` environment variable, `output_root` in the [settings file](#settings-shared-server)
+or `--output_root`.
 
 ```
 <output root>
@@ -136,7 +137,7 @@ In VS Code: select the project's `.venv` as interpreter, then use the configurat
 |---|---|---|
 | `--img_dir` | Folder of scale images (`.tif`/`.tiff`/`.jpg`/`.jpeg`, 8/16-bit, grey or colour); only read | |
 | `--run_name` | Appended to the run folder name | |
-| `--output_root` | Root folder for all outputs | `$SSCD_OUTPUT_ROOT` or `~/sscd_outputs` |
+| `--output_root` | Root folder for all outputs | `$SSCD_OUTPUT_ROOT`, else `C:\sscd_outputs` (Windows) / `~/sscd_outputs` |
 | `--run_dir` | Write to exactly this new/empty folder instead | |
 | `--transect_angles` | Transect directions in degrees (0 = right, 90 = up) | `0 45 90 135 180` |
 | `--plot_dets` | Save the detections drawn on the images (`work/focus`, `work/circuli`) | `True` |
@@ -226,7 +227,8 @@ Windows limits paths to 260 characters unless
   break the install (import errors); keep the environment elsewhere with
   `setx UV_PROJECT_ENVIRONMENT "%LOCALAPPDATA%\sscd\venv"`.
 - **Output root:** output files are named after the image and angle, so long image file names
-  plus a deep output root can fail. Use a short root, e.g. `setx SSCD_OUTPUT_ROOT C:\sscd_outputs`.
+  plus a deep output root can fail. The default `C:\sscd_outputs` is short for this reason; keep
+  any other root (`SSCD_OUTPUT_ROOT`) short too.
 - **Dropbox / OneDrive:** uv may fail with "incompatible hardlinks": `setx UV_LINK_MODE copy`.
 
 `setx` applies to new terminals; restart VS Code afterwards.

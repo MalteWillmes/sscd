@@ -127,8 +127,8 @@ uv add requests
      │     │     ├─── results
      │     │     │     ├─── circuli.csv             one row per circulus (see below)
      │     │     │     ├─── focus.csv               focus position per scale
-     │     │     │     ├─── scales_summary.csv      per scale: focus found?, transects, circuli,
-     │     │     │     │                             median spacing, transects without circuli
+     │     │     │     ├─── scales_summary.csv      per scale: focus found (and how), transects,
+     │     │     │     │                             circuli, median spacing, transects without circuli
      │     │     │     └─── per_image               focus/, circuli/: one txt per image
      │     │     │                                  (if --dets_separate_files True)
      │     │     ├─── progress.json                 live progress, counts and warnings (for the GUI)
@@ -142,6 +142,7 @@ uv add requests
      │     │     │                                  circuli/: transects without circuli
      │     │     └─── work
      │     │           ├─── scales                  8-bit RGB jpeg copies of the input scales
+     │     │           ├─── focus_retry             images used by the second focus pass
      │     │           └─── transects               the transect images (e.g. for annotating)
      │     └─── ...
      └─── evaluations
@@ -165,13 +166,14 @@ uv add requests
   the detection on the scale image) and `xmin`/`ymin`/`xmax`/`ymax` (detection box in the
   transect image). All distances are in pixels of the original scale image.
 
-  `results/focus.csv` columns: `scale_id`, `class_name`, `score`, `focus_method` (see below),
-  `n_focus_boxes` (see below), `xmin`/`ymin`/`xmax`/`ymax` (focus box) and `x_px`/`y_px` (focus centre), for scales where a
-  focus was found.
+  `results/focus.csv` columns: `scale_id`, `class_name`, `score`, `focus_method` and
+  `n_focus_boxes` (see below), `xmin`/`ymin`/`xmax`/`ymax` (focus box) and `x_px`/`y_px`
+  (focus centre), for scales where a focus was found.
+
   `results/scales_summary.csv` lists every input scale: `focus_found`, `focus_score`,
-  `focus_method`, `n_focus_boxes`, `n_transects`, `total_n_circuli` (all transects together), `mean_n_circuli` (per transect with
-  at least one circulus; transects without circuli are not counted), `median_spacing_px` and
-  `transects_without_circuli` (angles).
+  `focus_method`, `n_focus_boxes`, `n_transects`, `total_n_circuli` (all transects together),
+  `mean_n_circuli` (per transect with at least one circulus; transects without circuli are not
+  counted), `median_spacing_px` and `transects_without_circuli` (angles).
 
   **Second focus pass.** Scales where the focus detector finds no focus are looked at again
   (on by default; `--focus_retry False` turns it off):
@@ -212,7 +214,7 @@ uv add requests
   http://localhost:8501 - it only runs on your own computer. In the app you:
 
   - choose the folder with the scale images (type or paste the path, or use *Browse folders*);
-    it is checked straight away (number of images, file types, clashing names)
+    it is checked straight away (number of images, file types, clashing names, identical copies)
   - optionally give the run a name, and set the transect angles and advanced options
   - start the run, and follow it: a progress bar per stage, the numbers of images, scales with
     a focus, transects and circuli, and any warnings (e.g. scales where no focus was found) or
@@ -356,7 +358,7 @@ uv run python eval_detector.py --img_dir "./data/eval_example/imgs/" --anns_dir 
 | `--img_dir`  | Directory path to images for evaluation (`.jpg`, e.g. transect images from a run's `work/transects`) | str    |          |
 | `--anns_dir` | Directory path to annotation files: Pascal VOC XML files (or evaluator `.txt` files, e.g. from `annotations_xml_to_txt.py`) | str  |       |
 | `--dets_csv` | Detections to evaluate: a run's `results/circuli.csv` (or `results/focus.csv`), or a CSV with `img_id`, `class_name`, `score`, `xmin`, `ymin`, `xmax`, `ymax` columns | str | |
-| `--iou_threshould` | IOU threshold (IOU<sub>thresh</sub>) determining if a detection is TP or FP (see "Metrics" section bellow) | float  | `0.5`  |
+| `--iou_threshould` | IOU threshold (IOU<sub>thresh</sub>) determining if a detection is TP or FP (see "Metrics" section below; the argument name is spelled as shown) | float  | `0.5`  |
 | `--eval_name` | Optional name appended to the evaluation folder | str |  |
 | `--output_root` | Root folder for all outputs | str | `$SSCD_OUTPUT_ROOT`, else `~/sscd_outputs` |
 | `--eval_dir` | Write the evaluation to exactly this new (or empty) folder (`--eval_name`/`--output_root` are then ignored) | str |  |
@@ -443,7 +445,16 @@ pre-commit run --all-files
 ```
 
 On machines that block `.exe` launchers in user folders, pre-commit (and its hooks) cannot run
-locally; the same checks run on GitHub (Actions, once enabled for the repository).
+locally; the same checks run on GitHub on every push (the *CI* workflow).
+
+### Tests
+```bash
+uv run python -m pytest            # all tests (~2 min; the slow ones run the detectors)
+uv run python -m pytest -m "not slow"   # fast tests only (no weights needed)
+```
+The tests are in `tests/`. Tests marked `slow` run the full pipeline on the bundled example
+and are skipped if the weights are not installed. GitHub runs the whole suite on every push
+(the *Tests* workflow).
 
 
 ### References (supporting code)

@@ -3,8 +3,27 @@
 
 
 
+## Getting started
+
+1. Install [uv](https://docs.astral.sh/uv/getting-started/installation/) (Windows, in PowerShell:
+   `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`).
+2. Get SSCD: `git clone https://github.com/MalteWillmes/sscd.git`, or download the repository as
+   a ZIP file from GitHub and unpack it - any folder is fine.
+3. Start the web app:
+   - **Windows:** double-click `start_sscd.bat` in the SSCD folder
+   - **Linux / macOS:** run `./start_sscd.sh` in the SSCD folder
+
+The first start installs everything it needs (a few minutes; on Windows the Python environment is
+kept in `%LOCALAPPDATA%\sscd\envs\`, so the SSCD folder can be anywhere, e.g. in Dropbox or a
+long path). The app then opens in your browser and offers to download the trained model weights
+(~790 MB) if they're missing. Results are saved to `sscd_outputs` in your home folder (see
+[Where results are saved](#where-results-are-saved)). The rest of this README covers the command
+line, evaluation and development.
+
+
  __Table of Contents__
 
+   - [Getting started](#getting-started)
    - [Prerequisites](#prerequisites)
    - [Installation](#installation)
    - [How to run SSCD](#how-to-run-sscd)
@@ -142,11 +161,14 @@ uv add requests
 
 ### Web app (GUI)
 
+  Start it with `start_sscd.bat` / `start_sscd.sh` (see [Getting started](#getting-started)),
+  **SSCD: GUI (web app)** in VS Code, or from the SSCD folder with
+
   ```bash
   uv run --extra gui python -m streamlit run sscd_app.py
   ```
 
-  (or **SSCD: GUI (web app)** in VS Code). This opens SSCD in your browser, at
+  This opens SSCD in your browser, at
   http://localhost:8501 - it only runs on your own computer. In the app you:
 
   - choose the folder with the scale images (type or paste the path, or use *Browse folders*);

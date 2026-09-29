@@ -24,6 +24,8 @@ repos:
     hooks:
       - id: pretty-format-toml
         args: [--autofix]
+        # uv.lock is generated (and kept consistent) by uv itself
+        exclude: ^uv\.lock$
 
   - repo: https://github.com/Yelp/detect-secrets
     rev: v1.5.0

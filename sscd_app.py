@@ -30,7 +30,11 @@ from sscd_libs.jobs import (
 from sscd_libs.outputs import output_root
 from sscd_libs.settings import input_dir_allowed, load_settings, settings_path
 
-st.set_page_config(page_title="SSCD - Salmon Scale Circuli Detector", layout="centered")
+st.set_page_config(
+    page_title="SSCD - Salmon Scale Circuli Detector",
+    page_icon=str(Path(__file__).parent / "assets" / "sscd_icon.png"),  # browser-tab icon
+    layout="centered",
+)
 
 STATUS_LABELS = {
     "starting": "Starting",

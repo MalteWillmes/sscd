@@ -386,6 +386,7 @@ def detect(
     fig_h=20,
     progress=None,
     report_no_detections=True,
+    on_detections=None,
 ):
     """
     Run one YOLOv3 detector on every jpeg in `img_dir`.
@@ -416,6 +417,8 @@ def detect(
         called as progress(done, total) after each image
     report_no_detections : bool
         log a warning listing the images without any detection
+    on_detections : callable, optional
+        called as on_detections(n) after each image, with its number of detections
 
     Returns
     -------
@@ -515,6 +518,8 @@ def detect(
             im = Image.fromarray(img_orig.numpy())
             im.save(os.path.join(no_det_dir, img_id + ".jpeg"), "JPEG", quality=95)
 
+        if on_detections:
+            on_detections(img_detections_df.shape[0])
         if progress:
             progress(i, len(img_filepaths))
 

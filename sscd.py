@@ -359,16 +359,19 @@ def run_pipeline(args, paths, control):
         ## --- 4. Generate transect images off the detected focus (work/transects)
         logger.info("Extracting images of radial transects from focus in %d scales", len(focus_found))
         control.start_stage("transects", len(focus_found))
+        n_transects = 0
         for focus_bbx in tqdm(focus_found.to_dict("records"), ascii=True, ncols=120):
             get_transects(focus_bbox=focus_bbx,
                           transect_degrees=args["transect_angles"],
                           img_filepath=str(paths.scales / (focus_bbx["img_id"] + ".jpg")),
                           output_dir=str(paths.transects))
+            # transects of this scale that could be cut (the others lie off the image edge)
+            n_transects += sum((paths.transects / f"{focus_bbx['img_id']}_{a}.jpg").exists()
+                               for a in args["transect_angles"])
+            control.counts.update(transects=n_transects)   # shown in the GUI as they are cut
             control.advance()
         logger.info("Finished extracting transect images")
 
-        n_transects = len(list(paths.transects.glob("*.jpg")))
-        control.counts.update(transects=n_transects)
         control.set_failed("transects", len(focus_found) * len(args["transect_angles"]) - n_transects,
                            "transects off the image edge")
         if not n_transects:
@@ -379,6 +382,11 @@ def run_pipeline(args, paths, control):
             ## --- 5. Circuli detections (model for non-padded images, for conf thresh of 0.3)
             logger.info("Gearing up circuli detector")
             control.start_stage("circuli", n_transects)
+            control.counts["circuli"] = 0
+
+            def count_circuli(n):   # shown in the GUI as they are found
+                control.counts["circuli"] += n
+
             circuli_dets = detect(
                 img_dir=str(paths.transects),
                 weights=WEIGHTS["circuli"],
@@ -391,6 +399,7 @@ def run_pipeline(args, paths, control):
                 fig_w=100,
                 fig_h=5,
                 progress=control.progress_callback(),
+                on_detections=count_circuli,
                 **CIRCULI_MODEL,
             )
             logger.info("Finished circuli detection")

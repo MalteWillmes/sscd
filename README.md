@@ -18,6 +18,7 @@ updated for TensorFlow 2.16+/Keras 3, with a web app, overlays and a new output 
 - [Evaluating the detectors](#evaluating-the-detectors)
 - [Training](#training)
 - [Development](#development)
+- [Quick notes (Windows paths)](#quick-notes-windows-paths)
 
 
 ## Getting started
@@ -28,8 +29,7 @@ updated for TensorFlow 2.16+/Keras 3, with a web app, overlays and a new output 
 3. Start the web app: double-click `start_sscd.bat` (Windows) or run `./start_sscd.sh` (Linux/macOS).
 
 The first start installs everything (a few minutes) and offers to download the trained weights
-(~790 MB). On Windows the environment is kept in `%LOCALAPPDATA%\sscd\envs\`, so the SSCD folder
-can be anywhere, including Dropbox or a long path.
+(~790 MB). Windows: see [Quick notes](#quick-notes-windows-paths) for long paths and Dropbox.
 
 **For the command line / development**, set up the environment in the SSCD folder:
 
@@ -39,19 +39,13 @@ uv run python -m sscd_libs.fetch weights
 ```
 
 Re-run `uv sync --dev --extra gui` after pulling changes (plain `uv sync` removes the GUI packages).
-Windows notes:
-- A long repository path can break the TensorFlow install (260-character limit) unless
-  [long paths are enabled](https://learn.microsoft.com/windows/win32/fileio/maximum-file-path-limitation);
-  alternatively keep the environment elsewhere: `setx UV_PROJECT_ENVIRONMENT "%LOCALAPPDATA%\sscd\venv"`.
-- In Dropbox/OneDrive, uv may fail with "incompatible hardlinks": `setx UV_LINK_MODE copy`.
 
 
 ## Outputs
 
 Every run gets a new folder; nothing is overwritten. The **output root** is `~/sscd_outputs`
 by default. Change it with the `SSCD_OUTPUT_ROOT` environment variable, `output_root` in the
-[settings file](#settings-shared-server) or `--output_root`. On Windows, keep it short (e.g.
-`C:\sscd_outputs`) if image file names are long.
+[settings file](#settings-shared-server) or `--output_root`.
 
 ```
 <output root>
@@ -217,6 +211,22 @@ VS Code so that files keep upstream's style.
 
 Template updates: `uvx --with copier-template-extensions copier update --trust --defaults`
 (`.copier-answers.yml` still has `notebook: true`; this fork has no notebooks).
+
+## Quick notes (Windows paths)
+
+Windows limits paths to 260 characters unless
+[long paths are enabled](https://learn.microsoft.com/windows/win32/fileio/maximum-file-path-limitation)
+(needs admin rights). Without that:
+
+- **SSCD folder:** `start_sscd.bat` keeps its environment in `%LOCALAPPDATA%\sscd\envs\`, so the
+  SSCD folder can be anywhere. With `uv sync` inside a long path, TensorFlow's deep file paths
+  break the install (import errors); keep the environment elsewhere with
+  `setx UV_PROJECT_ENVIRONMENT "%LOCALAPPDATA%\sscd\venv"`.
+- **Output root:** output files are named after the image and angle, so long image file names
+  plus a deep output root can fail. Use a short root, e.g. `setx SSCD_OUTPUT_ROOT C:\sscd_outputs`.
+- **Dropbox / OneDrive:** uv may fail with "incompatible hardlinks": `setx UV_LINK_MODE copy`.
+
+`setx` applies to new terminals; restart VS Code afterwards.
 
 **References:** [yolov3-tf2][7] · [Diagonal crop][9] · [Object-Detection-Metrics][4] · [YOLOv3][10]
 

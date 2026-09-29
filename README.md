@@ -165,7 +165,9 @@ uv add requests
   `results/focus.csv` columns: `scale_id`, `class_name`, `score`, `xmin`/`ymin`/`xmax`/`ymax`
   (focus box) and `x_px`/`y_px` (focus centre), for scales where a focus was found.
   `results/scales_summary.csv` lists every input scale: `focus_found`, `focus_score`,
-  `n_transects`, `n_circuli`, `median_spacing_px` and `transects_without_circuli` (angles).
+  `n_transects`, `total_n_circuli` (all transects together), `mean_n_circuli` (per transect with
+  at least one circulus; transects without circuli are not counted), `median_spacing_px` and
+  `transects_without_circuli` (angles).
 
 ### Web app (GUI)
 

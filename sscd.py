@@ -236,7 +236,11 @@ def scales_summary(scale_ids, focus, transect_ids, circuli):
             "focus_found": scale_id in focus_score,
             "focus_score": focus_score.get(scale_id),
             "n_transects": len(angles),
-            "n_circuli": len(c),
+            "total_n_circuli": len(c),
+            # per transect with at least one circulus (transects without circuli are not
+            # counted); empty if there are none
+            "mean_n_circuli": (round(len(c) / (len(angles) - len(empty)), 2)
+                               if len(angles) > len(empty) else None),
             "median_spacing_px": round(c["spacing_px"].median(), 2) if len(c) else None,
             "transects_without_circuli": ";".join(str(a) for a in empty),
         })

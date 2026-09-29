@@ -6,7 +6,7 @@ Here we provide a guide for evaluating the performance of the Salmon Scale Circu
 
 Performance evaluation is based on geometric-based comparisons between detections and *ground truth* data (also referred to as annotations). In the context of object detection, ground truths consist of (manually) marked bounding boxes delimiting target objects in images.
 
-This guide assumes the detection step has been already carried out (using the [`sscd.py`](../README.md#how-to-run-sscd)  function), and the goal now is to assess the performance of one of the detectors on a set of images used in detection. Obtained evaluation metrics can then be contrasted with those observed when the detector was last trained. Considerable drops (>10%) in metrics provide a strong indication that the detector's expected prediction accuracy has declined, and therefore it should be retrained with fresh images.
+This guide assumes the detection step has been already carried out (using the [`sscd.py`](../README.md#command-line)  function), and the goal now is to assess the performance of one of the detectors on a set of images used in detection. Obtained evaluation metrics can then be contrasted with those observed when the detector was last trained. Considerable drops (>10%) in metrics provide a strong indication that the detector's expected prediction accuracy has declined, and therefore it should be retrained with fresh images.
 
 The following table provides the evaluation metrics of each detector obtained on the test set at the time of the latest training.
 
@@ -50,7 +50,7 @@ An important caveat in the evaluation process is the quality of the annotation d
     2. *LabelImg* has been correctly installed.
 
 
-  - During the detection step, jpg images of scales and transects used in detection are stored in the run folder's `work/scales` and `work/transects` subdirectories (`<output root>/runs/<run>/work/...`, see the [README](../README.md#where-results-are-saved)).
+  - During the detection step, jpg images of scales and transects used in detection are stored in the run folder's `work/scales` and `work/transects` subdirectories (`<output root>/runs/<run>/work/...`, see the [README](../README.md#outputs)).
 
   - The example described here refers to the evaluation of the circulus detector.
 

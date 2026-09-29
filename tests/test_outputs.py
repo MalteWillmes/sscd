@@ -14,7 +14,7 @@ def test_run_folders_are_new_dated_and_named(output_root):
     assert a.parent == output_root / "runs"
     assert a.name.endswith("_N-Esk-2018")          # file-system friendly name
     assert b.name == a.name + "-2"                 # never reuses a folder
-    for sub in ("results", "qc", "work/scales", "work/transects"):
+    for sub in ("results", "work/scales", "work/transects"):
         assert (a / sub).is_dir()
 
 

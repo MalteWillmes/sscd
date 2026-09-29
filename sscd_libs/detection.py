@@ -400,8 +400,8 @@ def detect(
         file with the detector's class names, one per line
     input_width, input_height : int
         model input size images are resized to
-    no_det_dir : str
-        images without any detection are copied here, for visual checks
+    no_det_dir : str or None
+        images without any detection are copied here, for visual checks (None: not copied)
     yolo_score_threshold : float
         minimum detection score
     yolo_max_boxes : int
@@ -510,6 +510,7 @@ def detect(
         # (rather than holding every such image in memory until the end)
         if img_detections_df.shape[0] == 0:
             no_detections_img_id.append(img_id)
+        if img_detections_df.shape[0] == 0 and no_det_dir:
             os.makedirs(no_det_dir, exist_ok=True)
             im = Image.fromarray(img_orig.numpy())
             im.save(os.path.join(no_det_dir, img_id + ".jpeg"), "JPEG", quality=95)

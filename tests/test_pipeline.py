@@ -60,3 +60,7 @@ def test_full_run_of_the_example_scales(tmp_path):
     stages = progress["stages"]
     assert (stages["focus"]["failed"], stages["focus_retry"]["failed"]) == (1, 1)
     assert stages["transects"]["failed"] == 0
+    # every step's images under work/ (no separate qc/ folder)
+    assert sorted(p.name for p in run_dir.iterdir() if p.is_dir()) == ["overlays", "results", "work"]
+    assert [p.name for p in (run_dir / "work" / "focus" / "no_focus").iterdir()] == ["Tummel 60300.jpeg"]
+    assert len(list((run_dir / "work" / "transects").glob("*.jpg"))) == 10

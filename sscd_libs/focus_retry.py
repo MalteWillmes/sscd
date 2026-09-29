@@ -91,7 +91,7 @@ def retry_focus(scale_ids, scales_dir, work_dir, detect_focus, low_threshold, pr
             sizes[scale_id] = im.size
             padded, offsets[scale_id] = pad_to_training_aspect(im)
         padded.save(padded_dir / f"{scale_id}.jpg", quality=95)
-    found = best_focus_box(detect_focus(str(padded_dir), str(work_dir / "padded_none"), None, progress))
+    found = best_focus_box(detect_focus(str(padded_dir), None, None, progress))
     if len(found):
         found = found.copy()
         dx = found["img_id"].map(lambda s: offsets[s][0])
@@ -113,7 +113,7 @@ def retry_focus(scale_ids, scales_dir, work_dir, detect_focus, low_threshold, pr
         low_dir.mkdir(parents=True, exist_ok=True)
         for scale_id in remaining:
             shutil.copy(Path(scales_dir) / f"{scale_id}.jpg", low_dir / f"{scale_id}.jpg")
-        found = best_focus_box(detect_focus(str(low_dir), str(work_dir / "low_threshold_none"), low_threshold, progress))
+        found = best_focus_box(detect_focus(str(low_dir), None, low_threshold, progress))
         if len(found):
             found = found.assign(focus_method="low_threshold")
             rescued.append(found)

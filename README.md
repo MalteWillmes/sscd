@@ -58,8 +58,11 @@ by default. Change it with the `SSCD_OUTPUT_ROOT` environment variable, `output_
  │    │    ├── scales_summary.csv one row per input scale
  │    │    └── per_image/         one txt per image (--dets_separate_files True)
  │    ├── overlays/              <scale>_overlay.jpg: circuli drawn on the scale
- │    ├── qc/                    focus_plots/, circuli_plots/, no_detections/{focus,circuli}/
- │    └── work/                  scales/ (jpeg copies), transects/, focus_retry/ - can be deleted
+ │    └── work/                  images of each step - can be deleted once checked
+ │         ├── scales/           jpeg copies of the input scales
+ │         ├── focus/            focus drawn on each scale; no_focus/, second_pass/
+ │         ├── transects/        the transect images
+ │         └── circuli/          circuli drawn on each transect; no_circuli/
  └── evaluations/<date>_<time>[_<name>]/
 ```
 
@@ -81,7 +84,7 @@ one circulus), `median_spacing_px`, `transects_without_circuli` (angles).
   `low_threshold` (best box above `--focus_low_threshold`, default 0.1). On 110 test scales it
   found 7 of 16 missed foci without adding false ones. Check these scales on the overlays.
 - `n_focus_boxes` > 1: several focus boxes were found; the most confident one is used. All boxes
-  are drawn in `qc/focus_plots` - check for several scales in one image or a false detection.
+  are drawn in `work/focus` - check for several scales in one image or a false detection.
 - Identical duplicate image files are reported (GUI and run warnings), as they would be counted twice.
 
 
@@ -136,7 +139,7 @@ In VS Code: select the project's `.venv` as interpreter, then use the configurat
 | `--output_root` | Root folder for all outputs | `$SSCD_OUTPUT_ROOT` or `~/sscd_outputs` |
 | `--run_dir` | Write to exactly this new/empty folder instead | |
 | `--transect_angles` | Transect directions in degrees (0 = right, 90 = up) | `0 45 90 135 180` |
-| `--plot_dets` | Save QC images (`qc/`) | `True` |
+| `--plot_dets` | Save the detections drawn on the images (`work/focus`, `work/circuli`) | `True` |
 | `--dets_separate_files` | Also one txt per image (`results/per_image/`) | `False` |
 | `--transect_max_boxes` | Maximum detections per transect | `500` |
 | `--overlays` | Draw overlays at the end of the run | `False` (GUI: `True`) |

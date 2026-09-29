@@ -93,7 +93,7 @@ def focus_checks(focus_dets_df):
     if len(multiple) > 0:
         logger.warning("... More than one focus detected in %d image(s) - only the most confident box is "
                        "used. Check them (n_focus_boxes in focus.csv; all boxes are drawn in "
-                       "qc/focus_plots). Do the images contain several scales?\n\n\t%s\n",
+                       "work/focus). Do the images contain several scales?\n\n\t%s\n",
                        len(multiple), unpack_for_string(
                            f"{r.img_id} ({r.n_focus_boxes} boxes, kept score {r.score:.2f})"
                            for r in multiple.itertuples()))
@@ -264,14 +264,14 @@ def second_focus_pass(args, paths, control, focus_found, missed):
                       yolo_score_threshold=threshold or FOCUS_MODEL["yolo_score_threshold"],
                       yolo_max_boxes=5, report_no_detections=False, progress=progress)
 
-    rescued = retry_focus(missed, paths.scales, paths.work / "focus_retry", detect_focus,
+    rescued = retry_focus(missed, paths.scales, paths.focus_retry, detect_focus,
                           args["focus_low_threshold"], progress=control.progress_callback())
     if len(rescued) == 0:
         return focus_found, missed
 
     for row in rescued.itertuples():
         # no longer a scale without detections
-        (paths.no_detections / "focus" / f"{row.img_id}.jpeg").unlink(missing_ok=True)
+        (paths.no_focus / f"{row.img_id}.jpeg").unlink(missing_ok=True)
         if args["plot_dets"]:
             with Image.open(paths.scales / f"{row.img_id}.jpg") as im:
                 plot_detections(np.asarray(im.convert("RGB")), rescued[rescued["img_id"] == row.img_id],
@@ -308,7 +308,7 @@ def run_pipeline(args, paths, control):
         img_dir=str(paths.scales),
         weights=WEIGHTS["focus"],
         classes_file=CLASS_FILES["focus"],
-        no_det_dir=str(paths.no_detections / "focus"),
+        no_det_dir=str(paths.no_focus),
         plot_dir=str(paths.focus_plots) if args["plot_dets"] else None,
         per_image_dir=str(paths.per_image / "focus") if per_image else None,
         draw_det_num=False,
@@ -335,7 +335,7 @@ def run_pipeline(args, paths, control):
     if missed:
         logger.warning("No focus found in %d scale image(s) - no circuli are detected on them:\n\n\t%s\n\n"
                        "\tImage(s) saved to %s\n", len(missed), unpack_for_string(missed),
-                       paths.no_detections / "focus")
+                       paths.no_focus)
     control.counts.update(scales=len(scale_ids), focus_found=len(focus_found))
 
     focus = focus_found.rename(columns={"img_id": "scale_id"})
@@ -381,7 +381,7 @@ def run_pipeline(args, paths, control):
                 img_dir=str(paths.transects),
                 weights=WEIGHTS["circuli"],
                 classes_file=CLASS_FILES["circuli"],
-                no_det_dir=str(paths.no_detections / "circuli"),
+                no_det_dir=str(paths.no_circuli),
                 yolo_max_boxes=args["transect_max_boxes"],
                 plot_dir=str(paths.circuli_plots) if args["plot_dets"] else None,
                 per_image_dir=str(paths.per_image / "circuli") if per_image else None,
@@ -505,7 +505,7 @@ def main():
         required=False,
         type=boolean_string,
         default=True,
-        help="save images with the detections drawn on them, for visual inspection (qc/)",
+        help="save images with the detections drawn on them, for visual inspection (work/focus, work/circuli)",
     )
     args_parser.add_argument(
         "--transect_max_boxes",

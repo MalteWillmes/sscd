@@ -10,9 +10,12 @@ the SSCD_OUTPUT_ROOT environment variable or --output_root):
             sscd.log
             results/   circuli.csv, focus.csv, scales_summary.csv
             overlays/  <scale>_overlay.jpg         (overlay_detections.py)
-            qc/        focus_plots/, circuli_plots/, no_detections/
-            work/      scales/, transects/         intermediate images (deletable; overlays
-                                                   then use the original input images)
+            work/                                  images of each step (deletable once checked;
+                                                   overlays then use the original input images)
+                scales/                            jpeg copies of the input scales
+                focus/                             focus drawn on each scale; no_focus/, second_pass/
+                transects/                         the transect images
+                circuli/                           circuli drawn on each transect; no_circuli/
         evaluations/<YYYY-MM-DD_HHMM>[_<name>]/   one folder per eval_detector.py run
             eval_info.json, eval.log, results/, plots/
 
@@ -131,22 +134,7 @@ class RunPaths:
     def overlays(self):
         return self.root / "overlays"
 
-    @property
-    def qc(self):
-        return self.root / "qc"
-
-    @property
-    def focus_plots(self):
-        return self.qc / "focus_plots"
-
-    @property
-    def circuli_plots(self):
-        return self.qc / "circuli_plots"
-
-    @property
-    def no_detections(self):
-        return self.qc / "no_detections"
-
+    # work/: the images of each step, in the order of the pipeline
     @property
     def work(self):
         return self.root / "work"
@@ -156,11 +144,31 @@ class RunPaths:
         return self.work / "scales"
 
     @property
+    def focus_plots(self):
+        return self.work / "focus"
+
+    @property
+    def no_focus(self):
+        return self.focus_plots / "no_focus"
+
+    @property
+    def focus_retry(self):
+        return self.focus_plots / "second_pass"
+
+    @property
     def transects(self):
         return self.work / "transects"
 
+    @property
+    def circuli_plots(self):
+        return self.work / "circuli"
+
+    @property
+    def no_circuli(self):
+        return self.circuli_plots / "no_circuli"
+
     def make_dirs(self):
-        for d in (self.results, self.qc, self.scales, self.transects):
+        for d in (self.results, self.scales, self.transects):
             d.mkdir(parents=True, exist_ok=True)
 
 

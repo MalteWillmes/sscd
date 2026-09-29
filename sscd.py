@@ -505,7 +505,7 @@ def main():
         "--transect_max_boxes",
         required=False,
         type=int,
-        default=200,
+        default=500,
         help="Maximum number of detections per transect image",
     )
     args_parser.add_argument(

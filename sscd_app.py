@@ -213,7 +213,7 @@ except ValueError as err:
 overlays = st.checkbox("Draw the detected circuli onto the scale images (overlays)", value=True)
 with st.expander("Advanced options"):
     max_circuli = st.number_input("Maximum number of circuli per transect", min_value=1, max_value=2000,
-                                  value=200, step=10)
+                                  value=500, step=10)
     plot_dets = st.checkbox("Save QC images with the detections drawn on each scale and transect", value=True)
     per_image = st.checkbox("Also save the detections of each image as a separate text file", value=False)
     focus_retry = st.checkbox(

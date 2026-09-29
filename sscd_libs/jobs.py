@@ -86,7 +86,7 @@ def parse_angles(text):
 
 # ------------------------------------------------------------------------------
 def start_run(input_dir, run_name, angles, settings, overlays=True, plot_dets=True,
-              per_image_files=False, max_circuli=200, focus_retry=True, focus_low_threshold=0.1):
+              per_image_files=False, max_circuli=500, focus_retry=True, focus_low_threshold=0.1):
     """Start sscd.py in a new run folder as an independent process. Returns the run folder."""
     root = output_root(settings.get("output_root"))
     run_dir = reserve_run_dir(root, run_name or None)

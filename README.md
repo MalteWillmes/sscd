@@ -138,7 +138,7 @@ In VS Code: select the project's `.venv` as interpreter, then use the configurat
 | `--transect_angles` | Transect directions in degrees (0 = right, 90 = up) | `0 45 90 135 180` |
 | `--plot_dets` | Save QC images (`qc/`) | `True` |
 | `--dets_separate_files` | Also one txt per image (`results/per_image/`) | `False` |
-| `--transect_max_boxes` | Maximum detections per transect | `200` |
+| `--transect_max_boxes` | Maximum detections per transect | `500` |
 | `--overlays` | Draw overlays at the end of the run | `False` (GUI: `True`) |
 | `--focus_retry` | Second focus pass for scales without a focus | `True` |
 | `--focus_low_threshold` | Score threshold of the second pass's last step (`0`: skip) | `0.1` |

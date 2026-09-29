@@ -325,11 +325,13 @@ def run_pipeline(args, paths, control):
     # the most confident box per scale (more than one is flagged by focus_checks)
     focus_found = best_focus_box(focus_dets).assign(focus_method="standard")
     missed = [s for s in scale_ids if s not in set(focus_found["img_id"])]
+    control.set_failed("focus", len(missed), "no focus")
 
     ## --- 2b. Second pass, only for scales without a focus: padded to the training
     ##         aspect ratio, then a lower score threshold (see sscd_libs/focus_retry.py)
     if args["focus_retry"] and missed:
         focus_found, missed = second_focus_pass(args, paths, control, focus_found, missed)
+        control.set_failed("focus_retry", len(missed), "still no focus")
     if missed:
         logger.warning("No focus found in %d scale image(s) - no circuli are detected on them:\n\n\t%s\n\n"
                        "\tImage(s) saved to %s\n", len(missed), unpack_for_string(missed),
@@ -364,15 +366,17 @@ def run_pipeline(args, paths, control):
             control.advance()
         logger.info("Finished extracting transect images")
 
-        has_transects = any(paths.transects.glob("*.jpg"))
-        if not has_transects:
+        n_transects = len(list(paths.transects.glob("*.jpg")))
+        control.set_failed("transects", len(focus_found) * len(args["transect_angles"]) - n_transects,
+                           "transects off the image edge")
+        if not n_transects:
             logger.warning("No transect could be extracted (every focus lies on the image border "
                            "in the requested directions) - skipping circuli detection")
 
         else:
             ## --- 5. Circuli detections (model for non-padded images, for conf thresh of 0.3)
             logger.info("Gearing up circuli detector")
-            control.start_stage("circuli", len(list(paths.transects.glob("*.jpg"))))
+            control.start_stage("circuli", n_transects)
             circuli_dets = detect(
                 img_dir=str(paths.transects),
                 weights=WEIGHTS["circuli"],
@@ -389,6 +393,8 @@ def run_pipeline(args, paths, control):
             )
             logger.info("Finished circuli detection")
             transect_ids = circuli_dets["img_id"].unique().tolist()
+            control.set_failed("circuli", circuli_dets.loc[circuli_dets["score"].isna(), "img_id"].nunique(),
+                               "transects without circuli")
 
             ## --- 6. Calculate circuli spacings
             logger.info("Calculating intracirculus spacings (in pixels)")

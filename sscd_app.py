@@ -263,10 +263,10 @@ def run_panel(run_dir):
     # progress per stage
     for stage in s["stages"]:
         done, total = stage.get("done", 0), stage.get("total", 0)
-        if total:
-            st.progress(min(done / total, 1.0), text=f"{stage['label']}: {done} / {total}")
-        else:
-            st.progress(0.0, text=f"{stage['label']}")
+        text = f"{stage['label']}: {done} / {total}" if total else stage["label"]
+        if stage.get("failed"):  # e.g. scales without a focus, transects without circuli
+            text += f" &nbsp; :red[**{stage['failed']} {stage.get('failed_label', 'failed')}**]"
+        st.progress(min(done / total, 1.0) if total else 0.0, text=text)
 
     # summary
     counts = s["counts"]

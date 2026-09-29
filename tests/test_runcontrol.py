@@ -37,6 +37,12 @@ def test_progress_file_tracks_stages_counts_and_warnings(tmp_path):
     assert p["counts"] == {"scales": 3}
     assert p["warnings"] == ["No focus found"]
 
+    rc.set_failed("focus", 1, "no focus")
+    rc.set_failed("circuli", 5, "not started")          # unknown stage: ignored
+    p = read_json(tmp_path / "progress.json")
+    assert p["stages"]["focus"]["failed"] == 1 and p["stages"]["focus"]["failed_label"] == "no focus"
+    assert "circuli" not in p["stages"]
+
 
 def test_stop_request_is_raised_at_the_next_checkpoint(tmp_path):
     rc = RunControl(tmp_path)

@@ -139,6 +139,12 @@ class RunControl:
         stage["done"] = stage["done"] + 1 if done is None else done
         self.save(force=stage["done"] >= stage["total"])
 
+    def set_failed(self, name, n, what):
+        """Record how many items of stage `name` failed, e.g. (12, 'no focus') - shown in the GUI."""
+        if name in self.stages:
+            self.stages[name].update(failed=int(n), failed_label=what)
+            self.save(force=True)
+
     def progress_callback(self):
         """A callable(done, total) for functions that report their own progress."""
         def callback(done, total):

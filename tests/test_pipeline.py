@@ -56,3 +56,7 @@ def test_full_run_of_the_example_scales(tmp_path):
         "N Esk NC_2018_186_overlay.jpg", "N Esk NC_2018_187_overlay.jpg"]
     progress = json.loads((run_dir / "progress.json").read_text())
     assert progress["status"] == "completed" and progress["warnings"]   # the 'no focus' warning
+    # failures per stage, shown in red in the GUI: Tummel 60300 has no focus in either pass
+    stages = progress["stages"]
+    assert (stages["focus"]["failed"], stages["focus_retry"]["failed"]) == (1, 1)
+    assert stages["transects"]["failed"] == 0

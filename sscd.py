@@ -291,7 +291,8 @@ def run_pipeline(args, paths, control):
     per_image = args["dets_separate_files"]
     input_images = list_input_images(args["img_dir"])
     n_images = len(input_images)
-    duplicates = find_duplicate_images(input_images)
+    control.counts.update(scales=n_images)   # shown in the GUI from the start
+    duplicates =find_duplicate_images(input_images)
     if duplicates:
         logger.warning("%d image(s) are identical copies of another image and are processed (and counted) "
                        "twice:\n\n\t%s\n", sum(len(g) - 1 for g in duplicates),
@@ -367,6 +368,7 @@ def run_pipeline(args, paths, control):
         logger.info("Finished extracting transect images")
 
         n_transects = len(list(paths.transects.glob("*.jpg")))
+        control.counts.update(transects=n_transects)
         control.set_failed("transects", len(focus_found) * len(args["transect_angles"]) - n_transects,
                            "transects off the image edge")
         if not n_transects:

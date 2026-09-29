@@ -16,4 +16,6 @@ uv sync --extra gui
 
 echo "Starting SSCD - open the address shown below in your browser. Press Ctrl+C to stop the app"
 echo "(a run that is in progress keeps going)."
+# the SSCD icon instead of Streamlit's in the browser tab, from the first moment
+uv run --no-sync python -m sscd_libs.app_icon || true
 exec uv run --no-sync python -m streamlit run sscd_app.py "$@"

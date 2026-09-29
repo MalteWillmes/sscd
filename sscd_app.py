@@ -16,6 +16,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+from sscd_libs.app_icon import install_favicon
 from sscd_libs.fetch import WEIGHTS_SENTINELS, fetch_weights
 from sscd_libs.folders import (
     browse_shortcuts,
@@ -43,6 +44,9 @@ st.set_page_config(
     page_icon=str(Path(__file__).parent / "assets" / "sscd_icon.png"),  # browser-tab icon
     layout="centered",
 )
+
+# for later starts (start_sscd.bat/.sh do it before the app starts); see sscd_libs/app_icon.py
+install_favicon()
 
 STATUS_LABELS = {
     "starting": "Starting",

@@ -38,5 +38,7 @@ if errorlevel 1 (
 echo.
 echo Starting SSCD - it opens in your browser. Close this window to stop the app
 echo (a run that is in progress keeps going).
+rem the SSCD icon instead of Streamlit's in the browser tab, from the first moment
+uv run --no-sync python -m sscd_libs.app_icon
 uv run --no-sync python -m streamlit run sscd_app.py %*
 if errorlevel 1 pause

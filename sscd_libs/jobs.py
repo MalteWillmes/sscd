@@ -103,9 +103,11 @@ def start_run(input_dir, run_name, angles, settings, overlays=True, plot_dets=Tr
         "--focus_retry", str(bool(focus_retry)),
         "--focus_low_threshold", str(float(focus_low_threshold)),
     ]
-    # detached from the GUI process: the run continues if the GUI is closed or restarted
+    # detached from the GUI process: the run continues if the GUI is closed or restarted.
+    # Windows: its own hidden console (CREATE_NO_WINDOW). DETACHED_PROCESS (no console) made
+    # the venv's python.exe launcher and git open a new, visible console window instead.
     kwargs = {"start_new_session": True} if os.name != "nt" else {
-        "creationflags": subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS}
+        "creationflags": subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW}
     console = open(run_dir / "console.log", "w", encoding="utf-8")  # noqa: SIM115 - handed to the child
     try:
         subprocess.Popen(cmd, cwd=REPO_DIR, stdout=console, stderr=subprocess.STDOUT,  # noqa: S603

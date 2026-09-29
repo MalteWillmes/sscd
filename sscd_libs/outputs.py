@@ -77,8 +77,9 @@ def _new_dir(parent, name=None):
     raise RuntimeError(f"Could not create a new folder in {parent}")
 
 
-# files a launcher (the GUI) may already have put in a reserved run folder
-LAUNCHER_FILES = {"console.log"}
+# files a launcher (the GUI) may already have put in a reserved run folder: its log, and a
+# stop request made while the run was still starting
+LAUNCHER_FILES = {"console.log", "STOP"}
 
 
 def _use_dir(path):

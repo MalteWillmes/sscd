@@ -35,6 +35,7 @@ def test_explicit_run_dir_must_be_new_or_empty(tmp_path):
     reserved = tmp_path / "reserved"   # a GUI-reserved folder holding only the launcher's log is fine
     reserved.mkdir()
     (reserved / "console.log").write_text("")
+    (reserved / "STOP").write_text("")   # stop clicked while the run was still starting
     assert outputs.new_run(run_dir=reserved).root == reserved.resolve()
 
 

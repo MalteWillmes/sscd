@@ -105,7 +105,10 @@ def _apply(run_dir):
 @st.fragment
 def focus_review_panel(run_dir):
     """Focus review for the run in `run_dir` (shown when it has scales without a focus)."""
-    paths = open_run(run_dir)
+    try:
+        paths = open_run(run_dir)
+    except FileNotFoundError:
+        return  # a run that is still starting has no run_info.json yet
     info = read_json(paths.info) or {}
     queue = mf.review_queue(paths)
     if not queue:

@@ -64,3 +64,15 @@ def test_focus_review_shows_scales_without_focus(output_root):
     assert "Focus review" in [h.value for h in at.subheader]
     assert at.selectbox(key="mf_scale").options == ["B  (to review)", "C  (to review)"]
     assert next(b for b in at.button if b.label == "Set focus here").disabled   # no click yet
+
+
+def test_run_that_is_still_starting_shows_without_errors(output_root):
+    # just after "Start run" the run folder exists, but sscd.py has not written run_info.json yet
+    run = output_root / "runs" / "2026-10-07_1402_starting"
+    run.mkdir(parents=True)
+    (run / "console.log").write_text("")
+    at = AppTest.from_file(str(REPO_DIR / "sscd_app.py"), default_timeout=60)
+    at.query_params["run"] = run.name
+    at.run()
+    assert not at.exception
+    assert "Focus review" not in [h.value for h in at.subheader]

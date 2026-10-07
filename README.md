@@ -59,8 +59,10 @@ or `--output_root`.
  │    │    ├── circuli.csv        one row per circulus
  │    │    ├── focus.csv          focus per scale
  │    │    ├── scales_summary.csv one row per input scale
+ │    │    ├── focus_corrections.csv  foci set by hand (see Manual focus)
  │    │    └── per_image/         one txt per image (--dets_separate_files True)
  │    ├── overlays/              <scale>_overlay.jpg: circuli drawn on the scale
+ │    ├── annotations/focus/     manual foci exported as training data (Pascal VOC)
  │    └── work/                  images of each step - can be deleted once checked
  │         ├── scales/           jpeg copies of the input scales
  │         ├── focus/            focus drawn on each scale; no_focus/, second_pass/
@@ -79,13 +81,15 @@ transect image). Distances are in pixels of the original image.
 
 **`scales_summary.csv`**: `scale_id`, `focus_found`, `focus_score`, `focus_method`,
 `n_focus_boxes`, `n_transects`, `total_n_circuli`, `mean_n_circuli` (per transect with at least
-one circulus), `median_spacing_px`, `transects_without_circuli` (angles).
+one circulus), `median_spacing_px`, `transects_without_circuli` (angles), `review_note` (manual
+focus review).
 
 **Focus QC flags**
 - `focus_method`: `standard`, or found in the **second pass**, which retries only scales without
   a focus: `padded` (image padded to the training aspect ratio, 3840 x 2748) and then
   `low_threshold` (best box above `--focus_low_threshold`, default 0.1). On 110 test scales it
   found 7 of 16 missed foci without adding false ones. Check these scales on the overlays.
+  `manual`: set by hand after the run (see [Manual focus](#manual-focus)).
 - `n_focus_boxes` > 1: several focus boxes were found; the most confident one is used. All boxes
   are drawn in `work/focus` - check for several scales in one image or a false detection.
 - Identical duplicate image files are reported (GUI and run warnings), as they would be counted twice.
@@ -108,6 +112,34 @@ Runs are separate processes: they keep going if the browser is closed. One run e
 time per output root (also counting command-line runs); others wait in a queue. Overlays are on
 by default.
 
+### Manual focus
+
+When a run has scales without a focus, a **Focus review** appears under the run in the web app.
+For each of these scales:
+
+- click the centre of the focus on the scale, and refine it on the enlarged view; then
+  *Set focus here*, or
+- *No usable focus* with a reason (e.g. regenerated scale), recorded as `review_note`.
+
+*Apply* then cuts the transects and detects the circuli for the corrected scales, with the run's
+own settings, and adds them to the run's results (`focus_method = manual`), overlays included.
+It runs in the background and in the queue, like a run. Only scales without a focus can be
+corrected; nothing already in the results changes.
+
+- The focus box of a manual focus - which sets the transect width (half its shorter side) - has
+  the median size of the foci detected in the same run.
+- The clicks are kept in `results/focus_corrections.csv`; `run_info.json` records each apply.
+- *Export as training data* writes the manual foci as Pascal VOC annotations, with the scale
+  images, to `annotations/focus/` - training data for the focus detector, and ground truth for
+  `eval_detector.py`. Optionally with the detector's own foci, marked as unverified.
+
+From the command line (e.g. with a corrections file written by hand):
+
+```bash
+uv run python manual_focus.py apply --run_dir "<run folder>"
+uv run python manual_focus.py export --run_dir "<run folder>" [--include_detected]
+```
+
 ### Settings (shared server)
 
 Optional `~/.sscd/settings.toml` (or the file in `SSCD_SETTINGS`):
@@ -128,6 +160,7 @@ through a reverse proxy with single sign-on.
 uv run python run_example.py                    # the 3 bundled example scales (--overlay, --eval, --no_plots)
 uv run python sscd.py --img_dir "Z:\scales\2024" --run_name 2024-batch1
 uv run python overlay_detections.py --latest    # draw detections of the latest run onto the scales
+uv run python manual_focus.py apply --run_dir "<run folder>"   # add foci set by hand (see Manual focus)
 ```
 
 In VS Code: select the project's `.venv` as interpreter, then use the configurations under

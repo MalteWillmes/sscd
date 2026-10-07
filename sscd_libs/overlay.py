@@ -124,8 +124,9 @@ def draw_overlay(scale_img, focus_bbox, angles, circuli, out_path, label_every=0
 
 
 def focus_by_scale(focus):
-    """results/focus.csv (rows with a focus) -> {scale_id: bbox dict}."""
-    return {row["scale_id"]: row for row in focus.dropna(subset=["score"]).to_dict("records")}
+    """results/focus.csv (rows with a focus box) -> {scale_id: bbox dict}. Manually set
+    foci (manual_focus.py) have a box but no detector score."""
+    return {row["scale_id"]: row for row in focus.dropna(subset=["xmin"]).to_dict("records")}
 
 
 def read_results_csv(path):
@@ -161,7 +162,7 @@ def scale_image(run, input_dir, scale_id):
         return to_8bit_rgb(im)
 
 
-def draw_run_overlays(run, angles, input_dir, label_every=0, progress=None):
+def draw_run_overlays(run, angles, input_dir, label_every=0, progress=None, scale_ids=None):
     """
     Draw <run>/overlays/<scale>_overlay.jpg for every scale with a focus, from the
     run's results. Returns the number of overlays drawn.
@@ -173,8 +174,11 @@ def draw_run_overlays(run, angles, input_dir, label_every=0, progress=None):
         input_dir: the run's input folder (fallback if work/ was deleted)
         label_every: number every n-th circulus (0 = no numbers)
         progress: optional callable(done, total), called after each scale
+        scale_ids: only draw these scales (default: all with a focus)
     """
     focus = focus_by_scale(read_results_csv(run.focus_csv))
+    if scale_ids is not None:
+        focus = {k: v for k, v in focus.items() if k in set(scale_ids)}
     circuli = read_results_csv(run.circuli_csv)
     run.overlays.mkdir(exist_ok=True)
     for i, (scale_id, focus_bbox) in enumerate(focus.items(), 1):

@@ -142,6 +142,10 @@ class RunPaths:
         return self.results / "scales_summary.csv"
 
     @property
+    def focus_corrections(self):
+        return self.results / "focus_corrections.csv"
+
+    @property
     def per_image(self):
         return self.results / "per_image"
 

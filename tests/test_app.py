@@ -48,3 +48,19 @@ def test_recent_folder_fills_in_the_folder(output_root, example_scales):
     assert not at.exception
     assert at.text_input(key="img_dir").value == str(example_scales)
     assert at.success[0].value.startswith("3 images")
+
+
+def test_focus_review_shows_scales_without_focus(output_root):
+    from test_manual_focus import _fake_run
+
+    run = output_root / "runs" / "2026-10-07_1000_review"
+    run.parent.mkdir(parents=True)
+    paths = _fake_run(run.parent)            # creates <runs>/run
+    paths.root.rename(run)
+    at = AppTest.from_file(str(REPO_DIR / "sscd_app.py"), default_timeout=60)
+    at.query_params["run"] = run.name
+    at.run()
+    assert not at.exception
+    assert "Focus review" in [h.value for h in at.subheader]
+    assert at.selectbox(key="mf_scale").options == ["B  (to review)", "C  (to review)"]
+    assert next(b for b in at.button if b.label == "Set focus here").disabled   # no click yet

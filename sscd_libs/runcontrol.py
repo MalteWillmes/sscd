@@ -24,7 +24,13 @@ STAGES = {
     "transects": "Extracting transects",
     "circuli": "Circuli detection",
     "overlays": "Drawing overlays",
+    # manual_focus.py apply: scales whose focus was set by hand after the run
+    "manual_transects": "Manual focus: extracting transects",
+    "manual_circuli": "Manual focus: circuli detection",
+    "manual_overlays": "Manual focus: drawing overlays",
 }
+# stages shown only once a run has reached them
+OPTIONAL_STAGES = ("focus_retry", "manual_transects", "manual_circuli", "manual_overlays")
 
 PROGRESS_FILE = "progress.json"
 STOP_FILE = "STOP"
@@ -92,6 +98,17 @@ class RunControl:
         self.status = "queued"
         self._last_save = 0.0
         self.handler = _WarningCollector(self)
+
+    @classmethod
+    def resume(cls, run_dir):
+        """Continue an existing run's progress record (stages, counts, warnings), e.g. for
+        a step that adds to a finished run."""
+        control = cls(run_dir)
+        previous = read_json(control.run_dir / PROGRESS_FILE) or {}
+        control.stages = previous.get("stages") or {}
+        control.counts = previous.get("counts") or {}
+        control.warnings = previous.get("warnings") or []
+        return control
 
     # --- reporting ------------------------------------------------------------
     def save(self, force=True):

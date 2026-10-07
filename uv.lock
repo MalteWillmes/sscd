@@ -1472,6 +1472,7 @@ dependencies = [
 [package.optional-dependencies]
 gui = [
     { name = "streamlit" },
+    { name = "streamlit-image-coordinates" },
 ]
 
 [package.dev-dependencies]
@@ -1491,6 +1492,7 @@ requires-dist = [
     { name = "pillow", specifier = ">=10.2.0,<11.0.0" },
     { name = "requests", specifier = ">=2.31.0,<3.0.0" },
     { name = "streamlit", marker = "extra == 'gui'", specifier = ">=1.64.0,<2.0.0" },
+    { name = "streamlit-image-coordinates", marker = "extra == 'gui'", specifier = ">=0.4.1" },
     { name = "tensorflow", specifier = ">=2.16.0,<3.0.0" },
     { name = "tqdm", specifier = ">=4.66.2,<5.0.0" },
 ]
@@ -1545,6 +1547,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/ce/98/399d9b5bea64f0db9a37a800e420ba563dcde293e91d244c7d96acaeb313/streamlit-1.64.0.tar.gz", hash = "sha256:5c3f9a9dec13b5c5197a9c764ebf1a9d77f9e19c1b4af008779cb45c368961a3", size = 9535360, upload-time = "2026-09-15T19:13:53.576Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d7/8e/e635448a7fd6d92211d4ff2150356b8dffd3fcdc05c00511c61110078871/streamlit-1.64.0-py3-none-any.whl", hash = "sha256:4daf63aa9eaa5452d0edc64a5bdb0c4ad25580fe3c62c270455f3c43e9db5098", size = 10093987, upload-time = "2026-09-15T19:13:51.284Z" },
+]
+
+[[package]]
+name = "streamlit-image-coordinates"
+version = "0.4.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "streamlit" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/1e/19/fe6d7087c27451f0a3d3063180969b77fc58b1fb4ef7db62c4428d15b08a/streamlit_image_coordinates-0.4.1.tar.gz", hash = "sha256:206795398525adeb4288aec983620377d6d700e16789dda26f4ad5c3ce14dad9", size = 6025, upload-time = "2026-08-14T15:12:30.386Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d9/b4/bb1de84d92cb9f07962dd3559809ec76c1259eb99af99437101088590b30/streamlit_image_coordinates-0.4.1-py3-none-any.whl", hash = "sha256:7cdab1b6d7688eb3c79e8d520f34e9e61c9a22766a9c217ae09f6604f7ba7e7f", size = 7787, upload-time = "2026-08-14T15:12:29.473Z" },
 ]
 
 [[package]]

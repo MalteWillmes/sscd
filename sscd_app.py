@@ -37,6 +37,7 @@ from sscd_libs.jobs import (
     stop_run,
 )
 from sscd_libs.outputs import output_root
+from sscd_libs.review_panel import focus_review_panel
 from sscd_libs.settings import input_dir_allowed, load_settings, settings_path
 
 st.set_page_config(
@@ -242,6 +243,12 @@ if st.button("Start run", type="primary", disabled=not can_start):
 def run_panel(run_dir):
     s = run_state(run_dir, ROOT)
     status = s["status"]
+    # when a run (or applying focus corrections) finishes, refresh the whole page, so the
+    # focus review below shows the new state
+    seen = st.session_state.setdefault("run_status_seen", {})
+    previous, seen[run_dir.name] = seen.get(run_dir.name), status
+    if previous is not None and previous != status and status in FINISHED:
+        st.rerun()
 
     col_title, col_stop = st.columns([3, 1])
     col_title.subheader(s["name"])
@@ -296,6 +303,7 @@ run_dir = shown_run()
 if run_dir is not None:
     st.divider()
     run_panel(run_dir)
+    focus_review_panel(run_dir)
 
 
 # --- recent runs ---------------------------------------------------------------

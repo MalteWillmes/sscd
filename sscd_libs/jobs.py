@@ -21,6 +21,7 @@ from sscd_libs.helpers import REPO_DIR
 from sscd_libs.outputs import output_root, reserve_run_dir
 from sscd_libs.runcontrol import (
     PROGRESS_FILE,
+    OPTIONAL_STAGES,
     STAGES,
     read_json,
     request_stop,
@@ -103,18 +104,29 @@ def start_run(input_dir, run_name, angles, settings, overlays=True, plot_dets=Tr
         "--focus_retry", str(bool(focus_retry)),
         "--focus_low_threshold", str(float(focus_low_threshold)),
     ]
+    _spawn(cmd, run_dir, log_mode="w")
+    return run_dir
+
+
+def start_manual_focus(run_dir):
+    """Apply a run's focus corrections (manual_focus.py apply) as an independent process,
+    queued like a run; its progress shows in the run's progress.json."""
+    cmd = [sys.executable, str(REPO_DIR / "manual_focus.py"), "apply", "--run_dir", str(run_dir)]
+    _spawn(cmd, Path(run_dir), log_mode="a")
+
+
+def _spawn(cmd, run_dir, log_mode):
     # detached from the GUI process: the run continues if the GUI is closed or restarted.
     # Windows: its own hidden console (CREATE_NO_WINDOW). DETACHED_PROCESS (no console) made
     # the venv's python.exe launcher and git open a new, visible console window instead.
     kwargs = {"start_new_session": True} if os.name != "nt" else {
         "creationflags": subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW}
-    console = open(run_dir / "console.log", "w", encoding="utf-8")  # noqa: SIM115 - handed to the child
+    console = open(run_dir / "console.log", log_mode, encoding="utf-8")  # noqa: SIM115 - handed to the child
     try:
         subprocess.Popen(cmd, cwd=REPO_DIR, stdout=console, stderr=subprocess.STDOUT,  # noqa: S603
                          stdin=subprocess.DEVNULL, **kwargs)
     finally:
         console.close()
-    return run_dir
 
 
 def stop_run(run_dir):
@@ -194,7 +206,7 @@ def run_state(run_dir, root):
         {"name": name, "label": label, **progress.get("stages", {}).get(name, {"done": 0, "total": 0})}
         for name, label in STAGES.items()
         if (name != "overlays" or info.get("parameters", {}).get("overlays"))
-        and (name != "focus_retry" or name in progress.get("stages", {}))  # only when it ran
+        and (name not in OPTIONAL_STAGES or name in progress.get("stages", {}))  # only when it ran
     ]
     return {
         "run_dir": str(run_dir),

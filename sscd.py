@@ -247,6 +247,8 @@ def scales_summary(scale_ids, focus, transect_ids, circuli):
             "median_spacing_px": (round(c["spacing_px"].dropna().median(), 2)
                                   if c["spacing_px"].notna().any() else None),
             "transects_without_circuli": ";".join(str(a) for a in empty),
+            # manual focus review: why a scale has no focus (see manual_focus.py)
+            "review_note": None,
         })
     return pd.DataFrame(rows)
 
@@ -284,6 +286,93 @@ def second_focus_pass(args, paths, control, focus_found, missed):
     return focus_found, [s for s in missed if s not in set(rescued["img_id"])]
 
 
+def transects_and_circuli(args, paths, control, focus, transects_dir, stages=("transects", "circuli")):
+    """
+    Steps 4-8 for the scales in `focus` (rows as in results/focus.csv): cut their radial
+    transects from work/scales into `transects_dir`, detect the circuli on them, calculate
+    the spacings and place each circulus on its scale image. The transect and circuli
+    counts in `control` are added to, so a later step (manual_focus.py) adds to a run's totals.
+
+    Returns (transect_ids, circuli, circuli_summary_stats).
+    """
+    angles = args["transect_angles"]
+    transects_dir = Path(transects_dir)
+    transects_dir.mkdir(parents=True, exist_ok=True)
+    circuli = pd.DataFrame(columns=CIRCULI_COLUMNS)
+
+    ## --- 4. Generate transect images off each focus
+    logger.info("Extracting images of radial transects from focus in %d scales", len(focus))
+    control.start_stage(stages[0], len(focus))
+    transects_before = control.counts.get("transects", 0)
+    n_transects = 0
+    for focus_bbx in tqdm(focus.to_dict("records"), ascii=True, ncols=120):
+        get_transects(focus_bbox=focus_bbx,
+                      transect_degrees=angles,
+                      img_filepath=str(paths.scales / (focus_bbx["scale_id"] + ".jpg")),
+                      output_dir=str(transects_dir))
+        # transects of this scale that could be cut (the others lie off the image edge)
+        n_transects += sum((transects_dir / f"{focus_bbx['scale_id']}_{a}.jpg").exists() for a in angles)
+        control.counts.update(transects=transects_before + n_transects)   # shown in the GUI as they are cut
+        control.advance()
+    logger.info("Finished extracting transect images")
+
+    control.set_failed(stages[0], len(focus) * len(angles) - n_transects, "transects off the image edge")
+    if not n_transects:
+        logger.warning("No transect could be extracted (every focus lies on the image border "
+                       "in the requested directions) - skipping circuli detection")
+        return [], circuli, pd.DataFrame()
+
+    ## --- 5. Circuli detections (model for non-padded images, for conf thresh of 0.3)
+    logger.info("Gearing up circuli detector")
+    control.start_stage(stages[1], n_transects)
+    control.counts.setdefault("circuli", 0)
+
+    def count_circuli(n):   # shown in the GUI as they are found
+        control.counts["circuli"] += n
+
+    circuli_dets = detect(
+        img_dir=str(transects_dir),
+        weights=WEIGHTS["circuli"],
+        classes_file=CLASS_FILES["circuli"],
+        no_det_dir=str(paths.no_circuli),
+        yolo_max_boxes=args["transect_max_boxes"],
+        plot_dir=str(paths.circuli_plots) if args["plot_dets"] else None,
+        per_image_dir=str(paths.per_image / "circuli") if args["dets_separate_files"] else None,
+        draw_det_num=True,
+        fig_w=100,
+        fig_h=5,
+        progress=control.progress_callback(),
+        on_detections=count_circuli,
+        **CIRCULI_MODEL,
+    )
+    logger.info("Finished circuli detection")
+    transect_ids = circuli_dets["img_id"].unique().tolist()
+    control.set_failed(stages[1], circuli_dets.loc[circuli_dets["score"].isna(), "img_id"].nunique(),
+                       "transects without circuli")
+
+    ## --- 6. Calculate circuli spacings
+    logger.info("Calculating intracirculus spacings (in pixels)")
+    circuli_dets["x_center"] = (circuli_dets["xmin"] + circuli_dets["xmax"]) / 2
+    circuli_dets["y_center"] = (circuli_dets["ymin"] + circuli_dets["ymax"]) / 2
+    # detections are sorted by x within each transect (see detections_as_df)
+    circuli_dets["spacing_px"] = circuli_dets.groupby("img_id")["x_center"].diff()
+    circuli_dets = circuli_dets.rename(columns={"detection_nr": "circulus_nr"})
+
+    ## --- 7. Sanity checks on circuli detections and spacings
+    logger.info("Running sanity checks on circuli detections and spacings...")
+    circuli_checks(circuli_dets, args["transect_max_boxes"])
+
+    ## --- 8. Position of each circulus on the scale image
+    found = circuli_dets.dropna(subset=["score"]).rename(columns={"img_id": "transect_id"})
+    found = found.astype({c: int for c in ("circulus_nr", "xmin", "ymin", "xmax", "ymax")})
+    circuli = circuli_on_scale(found, focus_by_scale(focus)).reindex(columns=CIRCULI_COLUMNS)
+
+    circuli_summary_stats = circuli_dets[["score", "spacing_px"]].describe(percentiles=[0.05, .5, .95])
+    circuli_summary_stats = circuli_summary_stats.rename(columns={"score": "det_conf_score"})
+    circuli_summary_stats = circuli_summary_stats.round({"det_conf_score": 4, "spacing_px": 2})
+    return transect_ids, circuli, circuli_summary_stats
+
+
 def run_pipeline(args, paths, control):
     """Detection pipeline for one run; writes into the run folder `paths` and reports
     progress through `control` (RunControl). Returns counts."""
@@ -292,7 +381,7 @@ def run_pipeline(args, paths, control):
     input_images = list_input_images(args["img_dir"])
     n_images = len(input_images)
     control.counts.update(scales=n_images)   # shown in the GUI from the start
-    duplicates =find_duplicate_images(input_images)
+    duplicates = find_duplicate_images(input_images)
     if duplicates:
         logger.warning("%d image(s) are identical copies of another image and are processed (and counted) "
                        "twice:\n\n\t%s\n", sum(len(g) - 1 for g in duplicates),
@@ -356,77 +445,9 @@ def run_pipeline(args, paths, control):
         logger.info("Running sanity checks on focus detections...")
         focus_checks(focus_found)
 
-        ## --- 4. Generate transect images off the detected focus (work/transects)
-        logger.info("Extracting images of radial transects from focus in %d scales", len(focus_found))
-        control.start_stage("transects", len(focus_found))
-        n_transects = 0
-        for focus_bbx in tqdm(focus_found.to_dict("records"), ascii=True, ncols=120):
-            get_transects(focus_bbox=focus_bbx,
-                          transect_degrees=args["transect_angles"],
-                          img_filepath=str(paths.scales / (focus_bbx["img_id"] + ".jpg")),
-                          output_dir=str(paths.transects))
-            # transects of this scale that could be cut (the others lie off the image edge)
-            n_transects += sum((paths.transects / f"{focus_bbx['img_id']}_{a}.jpg").exists()
-                               for a in args["transect_angles"])
-            control.counts.update(transects=n_transects)   # shown in the GUI as they are cut
-            control.advance()
-        logger.info("Finished extracting transect images")
-
-        control.set_failed("transects", len(focus_found) * len(args["transect_angles"]) - n_transects,
-                           "transects off the image edge")
-        if not n_transects:
-            logger.warning("No transect could be extracted (every focus lies on the image border "
-                           "in the requested directions) - skipping circuli detection")
-
-        else:
-            ## --- 5. Circuli detections (model for non-padded images, for conf thresh of 0.3)
-            logger.info("Gearing up circuli detector")
-            control.start_stage("circuli", n_transects)
-            control.counts["circuli"] = 0
-
-            def count_circuli(n):   # shown in the GUI as they are found
-                control.counts["circuli"] += n
-
-            circuli_dets = detect(
-                img_dir=str(paths.transects),
-                weights=WEIGHTS["circuli"],
-                classes_file=CLASS_FILES["circuli"],
-                no_det_dir=str(paths.no_circuli),
-                yolo_max_boxes=args["transect_max_boxes"],
-                plot_dir=str(paths.circuli_plots) if args["plot_dets"] else None,
-                per_image_dir=str(paths.per_image / "circuli") if per_image else None,
-                draw_det_num=True,
-                fig_w=100,
-                fig_h=5,
-                progress=control.progress_callback(),
-                on_detections=count_circuli,
-                **CIRCULI_MODEL,
-            )
-            logger.info("Finished circuli detection")
-            transect_ids = circuli_dets["img_id"].unique().tolist()
-            control.set_failed("circuli", circuli_dets.loc[circuli_dets["score"].isna(), "img_id"].nunique(),
-                               "transects without circuli")
-
-            ## --- 6. Calculate circuli spacings
-            logger.info("Calculating intracirculus spacings (in pixels)")
-            circuli_dets["x_center"] = (circuli_dets["xmin"] + circuli_dets["xmax"]) / 2
-            circuli_dets["y_center"] = (circuli_dets["ymin"] + circuli_dets["ymax"]) / 2
-            # detections are sorted by x within each transect (see detections_as_df)
-            circuli_dets["spacing_px"] = circuli_dets.groupby("img_id")["x_center"].diff()
-            circuli_dets = circuli_dets.rename(columns={"detection_nr": "circulus_nr"})
-
-            ## --- 7. Sanity checks on circuli detections and spacings
-            logger.info("Running sanity checks on circuli detections and spacings...")
-            circuli_checks(circuli_dets, args["transect_max_boxes"])
-
-            ## --- 8. Position of each circulus on the scale image
-            found = circuli_dets.dropna(subset=["score"]).rename(columns={"img_id": "transect_id"})
-            found = found.astype({c: int for c in ("circulus_nr", "xmin", "ymin", "xmax", "ymax")})
-            circuli = circuli_on_scale(found, focus_by_scale(focus)).reindex(columns=CIRCULI_COLUMNS)
-
-            circuli_summary_stats = circuli_dets[["score", "spacing_px"]].describe(percentiles=[0.05, .5, .95])
-            circuli_summary_stats = circuli_summary_stats.rename(columns={"score": "det_conf_score"})
-            circuli_summary_stats = circuli_summary_stats.round({"det_conf_score": 4, "spacing_px": 2})
+        ## --- 4.-8. Transects, circuli, spacings and positions on the scale images
+        transect_ids, circuli, circuli_summary_stats = transects_and_circuli(
+            args, paths, control, focus, paths.transects)
 
     else:
         logger.warning("Focus detector failed to locate focus in any of the provided scale images - "

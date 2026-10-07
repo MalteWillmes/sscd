@@ -35,7 +35,8 @@ version = "0.1.0"
 
 [project.optional-dependencies]
 gui = [
-  "streamlit>=1.64.0,<2.0.0"
+  "streamlit>=1.64.0,<2.0.0",
+  "streamlit-image-coordinates>=0.4.1",
 ]
 
 [tool.deptry]

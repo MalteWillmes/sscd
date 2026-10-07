@@ -86,3 +86,38 @@ def test_a_killed_run_frees_its_slot(tmp_path):
     time.sleep(0.5)
     assert not run_is_alive(tmp_path, run_dir)
     assert RunSlot(tmp_path, 1).try_acquire(tmp_path / "other")
+
+
+def test_log_lines_and_warnings_carry_their_stage(tmp_path):
+    import logging
+
+    from sscd_libs.jobs import stage_logs
+    from sscd_libs.runcontrol import stage_log_formatter
+
+    rc = RunControl(tmp_path)
+    log = logging.getLogger("test_stage_tags")
+    log.propagate = False
+    log.setLevel(logging.INFO)
+    handler = logging.FileHandler(tmp_path / "sscd.log", encoding="utf-8")
+    handler.setFormatter(stage_log_formatter())
+    handler.addFilter(rc.stage_filter)
+    log.addHandler(handler)
+    log.addHandler(rc.handler)
+    try:
+        log.warning("2 duplicate images")              # before any stage
+        rc.start_stage("focus", 3)
+        log.info("Starting detection in 3 images")
+        log.warning("No focus found in 1 scale image(s):\n\n\tTummel 60300")
+        rc.end_stages()
+        log.info("Summary")
+    finally:
+        handler.close()
+        log.removeHandler(handler)
+        log.removeHandler(rc.handler)
+
+    assert [(w["stage"], w["message"].split(":")[0]) for w in rc.warnings] == [
+        (None, "2 duplicate images"), ("focus", "No focus found in 1 scale image(s)")]
+    logs = stage_logs(tmp_path / "sscd.log")
+    assert "): Starting detection" in logs["focus"] and "[focus]" not in logs["focus"]
+    assert "\tTummel 60300" in logs["focus"]             # continuation lines stay with their message
+    assert "Summary" in logs["-"] and "duplicate" in logs["-"]

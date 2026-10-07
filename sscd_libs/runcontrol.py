@@ -33,6 +33,15 @@ STAGES = {
 OPTIONAL_STAGES = ("focus_retry", "manual_transects", "manual_circuli", "manual_overlays")
 
 PROGRESS_FILE = "progress.json"
+# sscd.log lines carry the stage they were written in, e.g. "INFO (2026-10-07 14:02:11) [focus]: ...";
+# "-" outside the stages. The GUI shows each stage's lines under its progress bar.
+LOG_FORMAT = "%(levelname)s (%(asctime)s) [%(sscd_stage)s]: %(message)s"
+LOG_DATEFMT = "%Y-%m-%d %H:%M:%S"
+
+
+def stage_log_formatter():
+    """Formatter for sscd.log; use with RunControl.stage_filter on the same handler."""
+    return logging.Formatter(LOG_FORMAT, LOG_DATEFMT, defaults={"sscd_stage": "-"})
 STOP_FILE = "STOP"
 SLOTS_DIR = ".run_slots"
 
@@ -82,8 +91,20 @@ class _WarningCollector(logging.Handler):
     def emit(self, record):
         if record.name.startswith("tensorflow"):
             return
-        self.control.warnings.append(record.getMessage().strip())
+        self.control.warnings.append({"stage": self.control.stage, "message": record.getMessage().strip()})
         self.control.save()
+
+
+class _StageTag(logging.Filter):
+    """Adds the run's current stage to each log record (record.sscd_stage)."""
+
+    def __init__(self, control):
+        super().__init__()
+        self.control = control
+
+    def filter(self, record):
+        record.sscd_stage = self.control.stage or "-"
+        return True
 
 
 class RunControl:
@@ -98,6 +119,7 @@ class RunControl:
         self.status = "queued"
         self._last_save = 0.0
         self.handler = _WarningCollector(self)
+        self.stage_filter = _StageTag(self)
 
     @classmethod
     def resume(cls, run_dir):
@@ -142,6 +164,10 @@ class RunControl:
                 return
             except OSError:
                 time.sleep(0.25)
+
+    def end_stages(self):
+        """Log messages and warnings after this belong to no stage (e.g. the summary)."""
+        self.stage = None
 
     def start_stage(self, name, total):
         self.check_stop()

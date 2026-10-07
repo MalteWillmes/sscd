@@ -9,6 +9,7 @@ closed, reloaded or used by several people without affecting the run.
 
 import collections
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -142,6 +143,33 @@ def _tail(path, n=200):
         return ""
 
 
+# "INFO (2026-10-07 14:02:11) [focus]: ..." (lines without a stage tag continue the previous one)
+_LOG_LINE = re.compile(r"^[A-Z]+ \([^)]*\) \[([^\]]*)\]: ")
+
+
+def stage_logs(path, n=300):
+    """sscd.log split by stage: {stage name or "-": its last `n` lines as text, without the
+    stage tag}."""
+    logs = collections.defaultdict(lambda: collections.deque(maxlen=n))
+    stage = "-"
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                m = _LOG_LINE.match(line)
+                if m:
+                    stage = m.group(1)
+                    line = line.replace(f" [{stage}]: ", ": ", 1)
+                logs[stage].append(line)
+    except OSError:
+        return {}
+    return {k: "".join(v) for k, v in logs.items()}
+
+
+def _warnings(raw):
+    """Warnings as {stage, message}; runs from before stages were recorded give plain text."""
+    return [w if isinstance(w, dict) else {"stage": None, "message": w} for w in raw or []]
+
+
 def _mark_ended(run_dir, info, progress, status, error):
     """Record a run whose process ended without recording it itself (crash, kill)."""
     from sscd_libs.outputs import write_info
@@ -216,12 +244,13 @@ def run_state(run_dir, root):
         "stage": progress.get("stage"),
         "stages": stages,
         "counts": progress.get("counts") or info.get("counts") or {},
-        "warnings": progress.get("warnings") or info.get("warnings") or [],
+        "warnings": _warnings(progress.get("warnings") or info.get("warnings")),
         "error": info.get("error"),
         "input_dir": info.get("input_dir"),
         "created": info.get("created"),
         "runtime_min": info.get("runtime_min"),
         "log": _tail(run_dir / "sscd.log"),
+        "stage_logs": stage_logs(run_dir / "sscd.log"),
         "console": _tail(run_dir / "console.log", 60),
     }
 

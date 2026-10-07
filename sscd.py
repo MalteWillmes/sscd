@@ -49,7 +49,7 @@ from sscd_libs.helpers import (
     )
 from sscd_libs.outputs import code_version, environment, new_run, output_root, write_info
 from sscd_libs.overlay import circuli_on_scale, draw_run_overlays, focus_by_scale, split_transect_ids
-from sscd_libs.runcontrol import RunControl, RunSlot, StopRequested
+from sscd_libs.runcontrol import RunControl, RunSlot, StopRequested, stage_log_formatter
 from sscd_libs.settings import load_settings
 
 from sscd_libs.detection import detect, plot_detections
@@ -256,8 +256,8 @@ def scales_summary(scale_ids, focus, transect_ids, circuli):
 def second_focus_pass(args, paths, control, focus_found, missed):
     """Look again for the focus in the `missed` scales; returns the updated
     (focus_found, missed). Rescued scales keep focus_method 'padded'/'low_threshold'."""
-    logger.info("Second focus pass for %d scale(s) without a focus", len(missed))
     control.start_stage("focus_retry", len(missed))
+    logger.info("Second focus pass for %d scale(s) without a focus", len(missed))
 
     def detect_focus(img_dir, no_det_dir, threshold, progress):
         return detect(img_dir=img_dir, weights=WEIGHTS["focus"], classes_file=CLASS_FILES["focus"],
@@ -454,6 +454,7 @@ def run_pipeline(args, paths, control):
                        "system cannot proceed to the circuli detection stage")
 
     ## --- 9. Results tables
+    control.end_stages()
     focus.to_csv(paths.focus_csv, index=False)
     circuli.to_csv(paths.circuli_csv, index=False)
     summary = scales_summary(scale_ids, focus, transect_ids, circuli)
@@ -596,6 +597,7 @@ def main():
     console_handler.setLevel(logging.INFO)
     file_handler = logging.FileHandler(paths.log, mode='w', encoding='utf-8')
     file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(stage_log_formatter())   # each line tagged with its stage
     logging.basicConfig(
         level=logging.INFO,
         format='%(levelname)s (%(asctime)s): %(message)s',
@@ -630,6 +632,7 @@ def main():
     # live progress, warnings and stop requests (progress.json / STOP in the run folder)
     control = RunControl(paths.root)
     logging.getLogger().addHandler(control.handler)
+    file_handler.addFilter(control.stage_filter)
     control.save()
 
     def finish(status, **fields):

@@ -11,6 +11,7 @@ Runs are ordinary sscd.py runs in their own process and run folder: they keep
 going if the browser tab is closed, and are listed again when the app reopens.
 """
 
+import collections
 from pathlib import Path
 
 import pandas as pd
@@ -239,6 +240,11 @@ if st.button("Start run", type="primary", disabled=not can_start):
 
 
 # --- the run shown in this tab ----------------------------------------------------
+def _show_warning(message):
+    first, _, rest = message.partition("\n")
+    st.warning(f"**{first.strip(' .')}**" + (f"\n\n```\n{rest.strip()}\n```" if rest.strip() else ""))
+
+
 @st.fragment(run_every="2s")
 def run_panel(run_dir):
     s = run_state(run_dir, ROOT)
@@ -271,6 +277,14 @@ def run_panel(run_dir):
     if s["input_dir"]:
         st.caption(f"Scale images: `{s['input_dir']}`")
 
+    # warnings (QC) and log lines are shown under the stage they come from; the others first
+    names = {stage["name"] for stage in s["stages"]}
+    by_stage = collections.defaultdict(list)
+    for w in s["warnings"]:
+        by_stage[w["stage"] if w["stage"] in names else None].append(w["message"])
+    for message in by_stage[None]:
+        _show_warning(message)
+
     # progress per stage
     for stage in s["stages"]:
         done, total = stage.get("done", 0), stage.get("total", 0)
@@ -278,6 +292,11 @@ def run_panel(run_dir):
         if stage.get("failed"):  # e.g. scales without a focus, transects without circuli
             text += f" &nbsp; :red[**{stage['failed']} {stage.get('failed_label', 'failed')}**]"
         st.progress(min(done / total, 1.0) if total else 0.0, text=text)
+        for message in by_stage[stage["name"]]:
+            _show_warning(message)
+        if log := s["stage_logs"].get(stage["name"]):
+            with st.expander(f"Log: {stage['label']}"):
+                st.code(log, language=None)
 
     # summary
     counts = s["counts"]
@@ -287,12 +306,7 @@ def run_panel(run_dir):
     c3.metric("Transects", counts.get("transects", "-"))
     c4.metric("Circuli", counts.get("circuli", "-"))
 
-    # QC warnings and errors
-    for warning in s["warnings"]:
-        first, _, rest = warning.partition("\n")
-        st.warning(f"**{first.strip(' .')}**" + (f"\n\n```\n{rest.strip()}\n```" if rest.strip() else ""))
-
-    with st.expander("Log", expanded=status == "failed"):
+    with st.expander("Full log", expanded=status == "failed"):
         st.code(s["log"] or s["console"] or "(no output yet)", language=None)
         if status == "failed" and s["console"] and s["console"] != s["log"]:
             st.caption("Console output")

@@ -64,3 +64,10 @@ def test_full_run_of_the_example_scales(tmp_path):
     assert sorted(p.name for p in run_dir.iterdir() if p.is_dir()) == ["overlays", "results", "work"]
     assert [p.name for p in (run_dir / "work" / "focus" / "no_focus").iterdir()] == ["Tummel 60300.jpeg"]
     assert len(list((run_dir / "work" / "transects").glob("*.jpg"))) == 10
+    # warnings and log lines are tagged with the stage they belong to (shown under it in the GUI)
+    no_focus = [w for w in progress["warnings"] if w["message"].startswith("No focus found")]
+    assert [w["stage"] for w in no_focus] == ["focus_retry"]
+    from sscd_libs.jobs import stage_logs
+    logs = stage_logs(run_dir / "sscd.log")
+    assert {"focus", "focus_retry", "transects", "circuli", "overlays"} <= set(logs)
+    assert "Starting detection in 3 images" in logs["focus"]

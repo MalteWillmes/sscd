@@ -32,7 +32,7 @@ from sscd_libs.detection import plot_detections
 from sscd_libs.helpers import unpack_for_string
 from sscd_libs.outputs import open_run, output_root, write_info
 from sscd_libs.overlay import draw_run_overlays, read_results_csv
-from sscd_libs.runcontrol import STOP_FILE, RunControl, RunSlot, StopRequested, read_json
+from sscd_libs.runcontrol import STOP_FILE, RunControl, RunSlot, StopRequested, read_json, stage_log_formatter
 from sscd_libs.settings import load_settings
 
 logger = logging.getLogger(__name__)
@@ -44,9 +44,12 @@ def _output_root_of(paths):
 
 
 def _setup_logging(paths):
-    handlers = (logging.StreamHandler(), logging.FileHandler(paths.log, mode="a", encoding="utf-8"))
+    file_handler = logging.FileHandler(paths.log, mode="a", encoding="utf-8")
+    file_handler.setFormatter(stage_log_formatter())   # each line tagged with its stage
     logging.basicConfig(level=logging.INFO, format="%(levelname)s (%(asctime)s): %(message)s",
-                        datefmt="%Y-%m-%d %H:%M:%S", handlers=handlers, force=True)
+                        datefmt="%Y-%m-%d %H:%M:%S", handlers=(logging.StreamHandler(), file_handler),
+                        force=True)
+    return file_handler
 
 
 def apply_corrections(paths, info, control):
@@ -120,6 +123,7 @@ def apply_corrections(paths, info, control):
         draw_run_overlays(paths, args["transect_angles"], args["img_dir"],
                           progress=control.progress_callback(), scale_ids=new_focus["scale_id"].tolist())
 
+    control.end_stages()
     mf.mark_applied(paths, decisions["scale_id"].tolist())
     control.counts["focus_found"] = control.counts.get("focus_found", 0) + len(new_focus)
     if len(new_focus):
@@ -139,10 +143,11 @@ def apply(run_dir):
         print("No corrections to apply.")
         return
 
-    _setup_logging(paths)
+    file_handler = _setup_logging(paths)
     (paths.root / STOP_FILE).unlink(missing_ok=True)  # an old stop request must not stop this
     control = RunControl.resume(paths.root)
     logging.getLogger().addHandler(control.handler)
+    file_handler.addFilter(control.stage_filter)
     logger.info("Applying focus corrections (%s)", paths.focus_corrections)
 
     def finish(**fields):

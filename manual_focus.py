@@ -73,9 +73,14 @@ def apply_corrections(paths, info, control):
                 "%d scale(s) marked as having no usable focus", len(new_focus), box[0], box[1], len(excluded))
 
     transect_ids, circuli = [], pd.DataFrame(columns=sscd.CIRCULI_COLUMNS)
+    morph, new_outlines = {}, []
     if len(new_focus):
-        for scale_id in new_focus["scale_id"]:
-            mf.scale_jpg(paths, args["img_dir"], scale_id)
+        for r in new_focus.to_dict("records"):
+            mf.scale_jpg(paths, args["img_dir"], r["scale_id"])
+            # the outline again, now with the focus (it picks the scale and gives the radii)
+            rows, morph[r["scale_id"]] = sscd.outline_scale(paths, r["scale_id"], (r["x_px"], r["y_px"]),
+                                                            args["transect_angles"], plot=args["plot_dets"])
+            new_outlines.append(rows)
         # cut into a staging folder, so only the new transects are detected
         staging = paths.focus_plots / "manual_transects"
         if staging.exists():
@@ -97,6 +102,11 @@ def apply_corrections(paths, info, control):
     # --- results tables: add rows, replace the summary rows of the corrected scales
     focus_all = pd.concat([focus_old, new_focus], ignore_index=True) if len(new_focus) else focus_old
     focus_all.reindex(columns=sscd.FOCUS_COLUMNS).to_csv(paths.focus_csv, index=False)
+    if new_outlines and paths.outlines_csv.exists():
+        old = read_results_csv(paths.outlines_csv)
+        old = old[~old["scale_id"].isin(new_focus["scale_id"])]
+        pd.concat([old, *new_outlines], ignore_index=True).reindex(columns=sscd.OUTLINE_COLUMNS).to_csv(
+            paths.outlines_csv, index=False)
     if len(circuli):
         circuli_all = pd.concat([read_results_csv(paths.circuli_csv), circuli], ignore_index=True)
         circuli_all.reindex(columns=sscd.CIRCULI_COLUMNS).to_csv(paths.circuli_csv, index=False)
@@ -107,7 +117,8 @@ def apply_corrections(paths, info, control):
         summary["review_note"] = None
     summary["review_note"] = summary["review_note"].astype(object)
     if len(new_focus):
-        new_rows = sscd.scales_summary(new_focus["scale_id"].tolist(), new_focus, transect_ids, circuli)
+        new_rows = sscd.scales_summary(new_focus["scale_id"].tolist(), new_focus, transect_ids, circuli, morph,
+                                       args["transect_angles"])
         new_rows["review_note"] = "focus set by hand"
         summary = pd.concat([summary[~summary["scale_id"].isin(new_rows["scale_id"])], new_rows],
                             ignore_index=True)

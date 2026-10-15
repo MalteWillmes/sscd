@@ -120,6 +120,7 @@ def test_apply_a_manual_focus_to_the_example_run(tmp_path):
     tummel = after.loc["Tummel 60300"]
     assert tummel.focus_found and tummel.focus_method == "manual" and tummel.review_note == "focus set by hand"
     assert tummel.n_transects == 5 and tummel.total_n_circuli > 50
+    assert tummel.radius_90_px > 100                                 # radii now that it has a focus
     # the scales found by the detector are unchanged
     found = ["N Esk NC_2018_186", "N Esk NC_2018_187"]
     pd.testing.assert_frame_equal(after.loc[found].drop(columns="review_note"),

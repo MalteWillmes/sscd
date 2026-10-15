@@ -71,3 +71,13 @@ def test_full_run_of_the_example_scales(tmp_path):
     logs = stage_logs(run_dir / "sscd.log")
     assert {"focus", "focus_retry", "transects", "circuli", "overlays"} <= set(logs)
     assert "Starting detection in 3 images" in logs["focus"]
+    # scale outline and morphometrics (pixels)
+    n_esk = summary.loc["N Esk NC_2018_186"]
+    assert n_esk.outline_found and pd.isna(n_esk.outline_flags)
+    assert 1.9e6 < n_esk.area_px2 < 2.4e6 and n_esk.length_px > n_esk.width_px > 1000
+    assert 700 < n_esk.radius_0_px < 1300 and 700 < n_esk.radius_90_px < 1300
+    assert pd.isna(summary.loc["Tummel 60300", "radius_0_px"])           # no focus: no radii
+    assert summary.loc["Tummel 60300", "outline_flags"] == "irregular outline"
+    outlines = pd.read_csv(run_dir / "results" / "outlines.csv")
+    assert set(outlines["scale_id"]) == set(summary.index) and len(outlines) > 100
+    assert progress["stages"]["outline"]["failed"] == 1

@@ -61,7 +61,10 @@ def circuli_on_scale(circuli, focus_by_scale):
 
 
 # ------------------------------------------------------------------------------
-def draw_overlay(scale_img, focus_bbox, angles, circuli, out_path, label_every=0):
+OUTLINE_COLOUR, OUTLINE_EDGE = (255, 255, 255), (20, 20, 20)   # white with a dark edge
+
+
+def draw_overlay(scale_img, focus_bbox, angles, circuli, out_path, label_every=0, outline=None):
     """
     Draw focus, transect outlines and a tick across the transect at each circulus.
 
@@ -73,6 +76,7 @@ def draw_overlay(scale_img, focus_bbox, angles, circuli, out_path, label_every=0
         circuli: this scale's rows of results/circuli.csv
         out_path: where to write the overlay jpeg
         label_every: number every n-th circulus (0 = no numbers)
+        outline: this scale's rows of results/outlines.csv (drawn if given)
     """
     if isinstance(scale_img, Image.Image):
         im = scale_img.convert("RGB")
@@ -87,6 +91,11 @@ def draw_overlay(scale_img, focus_bbox, angles, circuli, out_path, label_every=0
     outline_width = max(1, tick_width // 2)
     font = ImageFont.load_default(size=max(12, round(max(width, height) / 110)))
     halo = {"stroke_width": 2, "stroke_fill": (255, 255, 255)}
+
+    if outline is not None and len(outline) > 2:
+        points = list(zip(outline["x_px"], outline["y_px"], strict=True))
+        draw.line([*points, points[0]], fill=OUTLINE_EDGE, width=tick_width * 3, joint="curve")
+        draw.line([*points, points[0]], fill=OUTLINE_COLOUR, width=tick_width, joint="curve")
 
     for i, angle_deg in enumerate(sorted(angles)):
         geom = transect_geometry(focus_bbox, angle_deg, width, height)
@@ -177,14 +186,16 @@ def draw_run_overlays(run, angles, input_dir, label_every=0, progress=None, scal
         scale_ids: only draw these scales (default: all with a focus)
     """
     focus = focus_by_scale(read_results_csv(run.focus_csv))
+    outlines = read_results_csv(run.outlines_csv) if run.outlines_csv.exists() else None
     if scale_ids is not None:
         focus = {k: v for k, v in focus.items() if k in set(scale_ids)}
     circuli = read_results_csv(run.circuli_csv)
     run.overlays.mkdir(exist_ok=True)
     for i, (scale_id, focus_bbox) in enumerate(focus.items(), 1):
         scale_circuli = circuli[circuli["scale_id"] == scale_id]
+        outline = None if outlines is None else outlines[outlines["scale_id"] == scale_id]
         draw_overlay(scale_image(run, input_dir, scale_id), focus_bbox, angles, scale_circuli,
-                     run.overlays / f"{scale_id}_overlay.jpg", label_every=label_every)
+                     run.overlays / f"{scale_id}_overlay.jpg", label_every=label_every, outline=outline)
         logger.info("Overlay %s: %d circuli", scale_id, len(scale_circuli))
         if progress:
             progress(i, len(focus))

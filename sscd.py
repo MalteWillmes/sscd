@@ -54,6 +54,7 @@ from sscd_libs.settings import load_settings
 
 from sscd_libs.detection import detect, plot_detections
 from sscd_libs.focus_retry import best_focus_box, retry_focus
+from sscd_libs.morphometrics import draw_outline, find_outline, measure
 
 from sscd_libs.data_processing import (
     images_tiff_to_jpeg,
@@ -217,8 +218,14 @@ FOCUS_MODEL = {"input_width": 1376, "input_height": 1376, "yolo_score_threshold"
 CIRCULI_MODEL = {"input_width": 3904, "input_height": 64, "yolo_score_threshold": 0.3}
 
 
-def scales_summary(scale_ids, focus, transect_ids, circuli):
-    """One row per input scale: focus found?, transects, circuli, median spacing."""
+OUTLINE_COLUMNS = ["scale_id", "point_nr", "x_px", "y_px"]
+
+
+def scales_summary(scale_ids, focus, transect_ids, circuli, morph=None, angles=()):
+    """One row per input scale: focus found?, transects, circuli, median spacing, and the
+    scale's morphometrics (`morph`: {scale_id: dict from morphometrics.measure})."""
+    morph = morph or {}
+    no_outline = measure(None, (0, 0), angles=angles)
     t_scale, t_angle = (split_transect_ids(pd.Series(transect_ids, dtype=str))
                         if len(transect_ids) else (pd.Series(dtype=str), pd.Series(dtype=int)))
     focus_score = dict(zip(focus["scale_id"], focus["score"], strict=True))
@@ -247,6 +254,8 @@ def scales_summary(scale_ids, focus, transect_ids, circuli):
             "median_spacing_px": (round(c["spacing_px"].dropna().median(), 2)
                                   if c["spacing_px"].notna().any() else None),
             "transects_without_circuli": ";".join(str(a) for a in empty),
+            # scale outline and morphometrics, in pixels (see sscd_libs/morphometrics.py)
+            **{k: v for k, v in morph.get(scale_id, no_outline).items()},
             # manual focus review: why a scale has no focus (see manual_focus.py)
             "review_note": None,
         })
@@ -284,6 +293,47 @@ def second_focus_pass(args, paths, control, focus_found, missed):
         unpack_for_string(f"{r.img_id} ({r.focus_method}, score {r.score:.2f})" for r in rescued.itertuples()))
     focus_found = pd.concat([focus_found, rescued], ignore_index=True)
     return focus_found, [s for s in missed if s not in set(rescued["img_id"])]
+
+
+def outline_scale(paths, scale_id, focus=None, angles=(), plot=False):
+    """Outline and morphometrics of one scale (work/scales/<scale_id>.jpg); `focus` (x, y)
+    picks the scale among several objects and gives the radii. Returns (outline rows,
+    measurements)."""
+    with Image.open(paths.scales / f"{scale_id}.jpg") as im:
+        rgb = np.asarray(im.convert("RGB"))
+    points = find_outline(rgb, focus)
+    measurements = measure(points, (rgb.shape[1], rgb.shape[0]), focus=focus, angles=angles)
+    if plot:
+        paths.outline_plots.mkdir(parents=True, exist_ok=True)
+        Image.fromarray(draw_outline(rgb, points, focus, angles)).save(
+            paths.outline_plots / f"{scale_id}_outline.jpg", quality=85)
+    rows = pd.DataFrame(columns=OUTLINE_COLUMNS) if points is None else pd.DataFrame({
+        "scale_id": scale_id, "point_nr": np.arange(1, len(points) + 1),
+        "x_px": points[:, 0].round(1), "y_px": points[:, 1].round(1)})
+    return rows, measurements
+
+
+def outline_scales(args, paths, control, scale_ids, focus):
+    """The outline and morphometrics of every scale (stage 'outline'). Returns (outlines,
+    {scale_id: measurements})."""
+    centres = {r["scale_id"]: (r["x_px"], r["y_px"]) for r in focus.to_dict("records")}
+    logger.info("Finding the scale outlines of %d scales", len(scale_ids))
+    control.start_stage("outline", len(scale_ids))
+    outlines, morph = [], {}
+    for scale_id in tqdm(scale_ids, ascii=True, ncols=120):
+        rows, morph[scale_id] = outline_scale(paths, scale_id, centres.get(scale_id), args["transect_angles"],
+                                              plot=args["plot_dets"])
+        outlines.append(rows)
+        control.advance()
+    flagged = {s: m["outline_flags"] for s, m in morph.items() if m["outline_flags"]}
+    control.set_failed("outline", len(flagged), "outline(s) to check")
+    if flagged:
+        logger.warning("Scale outline to check for %d scale(s) - a scale touching the image border is cut off, so "
+                       "its area, perimeter and length are too small (outline_flags in scales_summary.csv; "
+                       "outlines drawn in %s):\n\n\t%s\n", len(flagged), paths.outline_plots,
+                       unpack_for_string(f"{s}: {f}" for s, f in flagged.items()))
+    outlines = [o for o in outlines if len(o)]
+    return (pd.concat(outlines, ignore_index=True) if outlines else pd.DataFrame(columns=OUTLINE_COLUMNS)), morph
 
 
 def transects_and_circuli(args, paths, control, focus, transects_dir, stages=("transects", "circuli")):
@@ -434,6 +484,10 @@ def run_pipeline(args, paths, control):
     focus = focus.astype({c: int for c in ("xmin", "ymin", "xmax", "ymax")})
     focus = focus.reindex(columns=FOCUS_COLUMNS)
 
+    ## --- 2c. Scale outline and morphometrics (every scale; the focus picks the object)
+    outlines, morph = outline_scales(args, paths, control, scale_ids, focus)
+    outlines.to_csv(paths.outlines_csv, index=False)
+
     transect_ids = []
     circuli = pd.DataFrame(columns=CIRCULI_COLUMNS)
     circuli_summary_stats = pd.DataFrame()
@@ -457,7 +511,7 @@ def run_pipeline(args, paths, control):
     control.end_stages()
     focus.to_csv(paths.focus_csv, index=False)
     circuli.to_csv(paths.circuli_csv, index=False)
-    summary = scales_summary(scale_ids, focus, transect_ids, circuli)
+    summary = scales_summary(scale_ids, focus, transect_ids, circuli, morph, args["transect_angles"])
     summary.to_csv(paths.summary_csv, index=False)
 
     counts = {"scales": len(scale_ids), "focus_found": len(focus), "transects": len(transect_ids),

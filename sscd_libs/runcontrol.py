@@ -21,6 +21,7 @@ STAGES = {
     "convert": "Converting images",
     "focus": "Focus detection",
     "focus_retry": "Focus: second pass (scales without focus)",
+    "outline": "Scale outline and morphometrics",
     "transects": "Extracting transects",
     "circuli": "Circuli detection",
     "overlays": "Drawing overlays",

@@ -59,13 +59,15 @@ or `--output_root`.
  │    │    ├── circuli.csv        one row per circulus
  │    │    ├── focus.csv          focus per scale
  │    │    ├── scales_summary.csv one row per input scale
+ │    │    ├── outlines.csv       scale outline points (see Scale morphometrics)
  │    │    ├── focus_corrections.csv  foci set by hand (see Manual focus)
  │    │    └── per_image/         one txt per image (--dets_separate_files True)
- │    ├── overlays/              <scale>_overlay.jpg: circuli drawn on the scale
+ │    ├── overlays/              <scale>_overlay.jpg: outline and circuli drawn on the scale
  │    ├── annotations/focus/     manual foci exported as training data (Pascal VOC)
  │    └── work/                  images of each step - can be deleted once checked
  │         ├── scales/           jpeg copies of the input scales
  │         ├── focus/            focus drawn on each scale; no_focus/, second_pass/
+ │         ├── outline/          outline, length and radii drawn on each scale
  │         ├── transects/        the transect images
  │         └── circuli/          circuli drawn on each transect; no_circuli/
  └── evaluations/<date>_<time>[_<name>]/
@@ -81,8 +83,29 @@ transect image). Distances are in pixels of the original image.
 
 **`scales_summary.csv`**: `scale_id`, `focus_found`, `focus_score`, `focus_method`,
 `n_focus_boxes`, `n_transects`, `total_n_circuli`, `mean_n_circuli` (per transect with at least
-one circulus), `median_spacing_px`, `transects_without_circuli` (angles), `review_note` (manual
-focus review).
+one circulus), `median_spacing_px`, `transects_without_circuli` (angles), the scale
+morphometrics (`outline_found`, `area_px2`, `perimeter_px`, `length_px`, `width_px`, `solidity`,
+`radius_<angle>_px`, `outline_flags`; see below) and `review_note` (manual focus review).
+
+**`outlines.csv`**: `scale_id`, `point_nr`, `x_px`, `y_px` - the outline of each scale as a
+closed polygon in pixels of the scale image.
+
+**Scale morphometrics** (every scale, in pixels - not yet calibrated to µm):
+- the outline is found from the image itself (no trained model): the scale is busier (circuli)
+  and darker than the slide; debris touching it is cut off. On synthetic scales the outline lies
+  within about 2 px of the true edge.
+- `area_px2`, `perimeter_px` of the outline; `length_px` and `width_px` are the maximum and
+  minimum Feret diameters (largest and smallest caliper width), so they don't depend on how the
+  scale lies in the image; `solidity` = area / convex hull area.
+- `radius_<angle>_px`: distance from the focus to the outline along each transect angle - the
+  scale radius for back-calculation, measured on the same transects as the circuli.
+- `outline_flags` - check these scales (outlines drawn in `work/outline/`):
+  - `touches the image border`: the scale is cut off, so its area, perimeter and length are
+    too small (the radii along transects that don't reach the cut are unaffected). In the VI
+    images this is the case for 99 of 110 scales, whose posterior field runs off the bottom
+    of the frame.
+  - `irregular outline`: solidity below 0.90, e.g. part of a faint scale missed.
+  - `focus outside the outline`, `no outline found`.
 
 **Focus QC flags**
 - `focus_method`: `standard`, or found in the **second pass**, which retries only scales without

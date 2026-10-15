@@ -142,6 +142,10 @@ class RunPaths:
         return self.results / "scales_summary.csv"
 
     @property
+    def outlines_csv(self):
+        return self.results / "outlines.csv"
+
+    @property
     def focus_corrections(self):
         return self.results / "focus_corrections.csv"
 
@@ -173,6 +177,10 @@ class RunPaths:
     @property
     def focus_retry(self):
         return self.focus_plots / "second_pass"
+
+    @property
+    def outline_plots(self):
+        return self.work / "outline"
 
     @property
     def transects(self):
